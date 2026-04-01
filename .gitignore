@@ -21,3 +21,5 @@ temp/
 .python-version
 node_modules
 .streamlit/secrets.toml
+*.tsbuildinfo
+test-key.js
