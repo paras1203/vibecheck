@@ -1,0 +1,22 @@
+description: "ALWAYS apply this rule to prevent code truncation, protect backend logic, and ensure full file outputs." globs: ["**/*"]
+Workflow & Quality Standards
+1. Anti-Lazy Code Generation (CRITICAL)
+NO Partial Outputs: NEVER return code with comments like //... existing code... or //... rest of component.
+
+Full Files Only: When generating code in Composer (Cmd+I), ALWAYS output the complete file content so I can apply it directly without copy-paste errors.
+
+Verify Imports: Before finishing, check that all used components (e.g., Card, Button) are imported from @/components/ui/....
+
+2. The "UX-Only" Refactor Protocol
+When the user asks to "Redesign" or "Refactor" for UI/UX:
+
+Freeze Logic: You are strictly FORBIDDEN from modifying useEffect, useState, Firebase calls, or Razorpay logic.
+
+Touch Only JSX: Only modify the className, layout structure (divs), and component wrappers.
+
+Preserve IDs: Do not remove id attributes or data-attributes that might be used by existing JavaScript/Analytics.
+
+3. Self-Correction
+If you notice you are about to truncate a long file, STOP and output it in two parts or ask for permission.
+
+If a Shadcn component is missing (e.g., "Module not found: Can't resolve..."), immediately suggest the npx shadcn@latest add [component] command to fix it.

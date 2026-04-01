@@ -1,0 +1,6 @@
+# Coding Standards
+- Use Functional Components with Hooks.
+- Use `zod` for all schema validation (API inputs, Env vars).
+- Error Handling: All API routes must return structured JSON errors.
+- Comments: Explain complex logic, but keep code self-documenting.
+- Files: Use kebab-case for filenames (e.g., `user-profile.tsx`).

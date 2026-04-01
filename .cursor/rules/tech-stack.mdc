@@ -1,0 +1,30 @@
+# Technical Stack & Constraints
+- Framework: Next.js 14+ (App Router). Use `src/app` structure.
+- Language: TypeScript (Strict mode). No `any` types.
+- Styling: Tailwind CSS + Shadcn/UI.
+- Backend: Firebase (Firestore, Auth, Cloud Functions).
+- AI Orchestration: Firebase Genkit + Google Gemini 1.5 Pro Vision.
+- Payments: Razorpay (One-time payments/Credits model).
+- Icons: Lucide React.
+- State Management: React Context (keep it simple).
+
+Description: "Apply this rule when touching backend logic, Firebase, or Razorpay." globs: ["src/app/api//*", "src/lib//*"]
+Technical Constraints
+1. Firebase (Backend)
+We use Firebase Client SDK for Auth (signInWithPopup).
+
+We use Firebase Admin SDK in API routes (firestore().collection('audits')).
+
+CRITICAL: Do not change the data structure in Firestore. Only read/write.
+
+2. Razorpay (Payments)
+Model: One-time Credits (Pre-paid). NO RECURRING SUBSCRIPTIONS (due to RBI mandate friction).
+
+Flow: User buys 5 credits -> Razorpay Order Created -> Payment Success -> Webhook -> Update Firestore credits balance.
+
+Frontend: Use useRazorpay hook. Keep the script load efficient.
+
+3. Refactoring Safety
+Logic Lock: When asked to "Refactor UI", YOU MUST NOT CHANGE functionality.
+
+If you split a file, ensure all imports (Firebase, etc.) are preserved.

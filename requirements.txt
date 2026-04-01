@@ -1,0 +1,16 @@
+streamlit
+playwright
+playwright-stealth
+google-generativeai
+fpdf
+beautifulsoup4
+fake-useragent
+altair
+pandas
+pillow
+python-dotenv
+plotly
+kaleido
+opencv-python
+numpy
+firebase-admin

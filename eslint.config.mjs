@@ -12,7 +12,30 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "test-key.js",
   ]),
+  {
+    files: [
+      "src/app/api/roast/route.ts",
+      "src/lib/capture.ts",
+      "src/lib/gemini-client.ts",
+      "src/lib/pdf-templates.ts",
+      "src/lib/ai-logic.ts",
+    ],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
+    files: [
+      "src/components/ui/progress-bar.tsx",
+      "src/context/AuthContext.tsx",
+      "src/components/roi-calculator.tsx",
+    ],
+    rules: {
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

@@ -1,0 +1,106 @@
+\# SiteRoast.ai - Prompt History Log
+
+
+
+\## 1. Backend Logic Setup (Step 7)
+
+"I need to update our backend logic to handle multiple images and use a specific '3-Lens' auditing framework.
+
+Please update the `generate\_roast` function in `main.py` with the following requirements:
+
+1\. Input Handling: Accept a list of image files (PIL Images).
+
+2\. Model: Use `gemini-1.5-flash`.
+
+3\. The Payload: Convert all images into a single list of content parts and send them alongside the System Prompt in one request.
+
+4\. The Prompt: Use the exact 'Master System Prompt' provided.
+
+5\. Safety: Wrap the API call in a try/except block to catch any 'Blocked by safety filters' or connection errors."
+
+
+
+\## 2. Frontend UI Polish (Step 8)
+
+"The backend is working. Now I want to improve the Frontend UI in `main.py`.
+
+Please parse the Markdown response from Gemini and display it using Streamlit components:
+
+1\. Score: Create a random 'Roast Score' (1-10) based on the sentiment of the text and display it using `st.metric`.
+
+2\. The Verdict: Display the roast summary in a `st.warning` or `st.info` box at the top.
+
+3\. Tabs: Use `st.tabs(\["First Impression", "Structure", "Aesthetics"])` to separate the 3 Lenses.
+
+4\. Quick Wins: Put the checklist in an `st.expander` at the bottom called '🚀 Reveal Quick Wins'."
+
+
+
+\## 3. The Automation / Scraper (Step 9)
+
+"I want to remove the manual file uploader and replace it with a \*\*URL Input Field\*\*.
+
+1\. Frontend: Change the UI. Instead of `st.file\_uploader`, give me `st.text\_input` where the user pastes their Website URL.
+
+2\. Backend (The Scraper):
+
+&nbsp;   \* Use the `playwright` library (sync API).
+
+&nbsp;   \* Create a function `scrape\_website(url)` that launches a headless browser, navigates to the URL, takes a screenshot, scrolls down by one viewport height, and repeats (max 5-6 screens).
+
+&nbsp;   \* Extract `document.body.innerText` (all visible text) and the HTML source."
+
+
+
+\## 4. The "God Mode" Upgrade (JSON + PDF + Heatmap)
+
+"I need a major overhaul of `main.py` to upgrade this from a prototype to a paid-product level.
+
+1\. THE GOD-TIER SYSTEM PROMPT:
+
+&nbsp;   \* Role: Brutally honest, witty Senior CRO Consultant.
+
+&nbsp;   \* Output Schema (Strict JSON): `headline\_roast`, `summary\_bullets` (7-10 items), `categories` (UX, Conversion, Legal, Speed), `deep\_dive` (Score, Verdict, Impact, Fix).
+
+2\. THE 'VIBE' PROGRESS BAR:
+
+&nbsp;   \* Remove raw logs. Use a progress bar that cycles through user-friendly messages ('Simulating First Impression...', 'Reading copy...', 'Generating Heatmap...').
+
+3\. PDF ENGINE OVERHAUL:
+
+&nbsp;   \* Use `fpdf`. Create a custom `PDFReport` class with consistent branding/borders in the header.
+
+&nbsp;   \* Use `multi\_cell(w=0)` to prevent text cut-off.
+
+&nbsp;   \* Layout: Page 1 (Summary), Page 2 (Heatmap), Page 3+ (Deep Dives).
+
+4\. THE HEATMAP:
+
+&nbsp;   \* Implement a 'Predictive Focus Map' using PIL/OpenCV.
+
+&nbsp;   \* Logic: Take screenshot -> find high-contrast edges -> overlay semi-transparent heatmap -> save as `heatmap.png`.
+
+5\. SCRAPING:
+
+&nbsp;   \* Extract Screenshot AND `document.body.innerText`."
+
+
+
+\## 5. Precise Scrolling (The Heatmap Fix)
+
+"Refining the Scraper Logic for the Heatmap:
+
+To ensure the 'Stitched Image' is seamless and has no duplicate content:
+
+1\. Dynamic Viewport: Determine `window.innerHeight`.
+
+2\. Precise Scrolling: Scroll down by exactly that amount using `page.mouse.wheel(0, viewport\_height)`.
+
+3\. Sticky Headers: Execute JS to `display: none` any elements with `position: fixed` before stitching.
+
+4\. The Stitch: Concatenate images vertically using PIL. No pixel matching needed."
+
+
+
+
+

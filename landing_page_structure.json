@@ -1,0 +1,731 @@
+{
+  "page_title": "SiteRoast - Brutal Conversion Audits",
+  "page_icon": "🔥",
+  "layout": "wide",
+  "description": "Complete structure of the landing page after clicking 'Roast My Site' button and audit is complete",
+  
+  "css_styles": {
+    "main_title": {
+      "class": "main-title",
+      "font_size": "3.2rem",
+      "font_weight": "bold",
+      "text_align": "center",
+      "gradient": "linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 25%, #c44569 50%, #8b5cf6 75%, #667eea 100%)",
+      "text_fill": "transparent",
+      "letter_spacing": "-0.02em"
+    },
+    "sub_header": {
+      "class": "sub-header",
+      "font_size": "1.3rem",
+      "color": "#64748b",
+      "text_align": "center",
+      "margin_bottom": "2rem"
+    },
+    "css_card": {
+      "class": "css-card",
+      "background_color": "#26282f",
+      "border": "1px solid #3a3a3a",
+      "border_radius": "10px",
+      "padding": "1rem",
+      "margin_bottom": "1rem",
+      "box_shadow": "0 4px 8px rgba(0, 0, 0, 0.1)"
+    },
+    "css_card_mini": {
+      "class": "css-card-mini",
+      "border_radius": "7px",
+      "padding": "0.7rem",
+      "margin_bottom": "0.7rem",
+      "text_align": "center",
+      "font_weight": "bold",
+      "box_shadow": "0 2px 5px rgba(0, 0, 0, 0.1)"
+    }
+  },
+  
+  "sections": [
+    {
+      "section_id": "hero_section",
+      "section_name": "Hero Section (Input Area)",
+      "position": "top",
+      "layout": "3-column (1:2:1 ratio)",
+      "visible": "always",
+      "components": [
+        {
+          "component": "Title",
+          "type": "markdown",
+          "content": "SiteRoast",
+          "class": "main-title",
+          "styling": "Gradient text, centered"
+        },
+        {
+          "component": "Subtitle",
+          "type": "markdown",
+          "content": "The Brutal Conversion Audit",
+          "class": "sub-header"
+        },
+        {
+          "component": "API Key Warning",
+          "type": "st.warning",
+          "condition": "if API key not found",
+          "content": "[!] API Key not found - For Streamlit Cloud: add GOOGLE_GENAI_API_KEY to Secrets. For local: add it to .env.local file"
+        },
+        {
+          "component": "URL Input",
+          "type": "st.text_input",
+          "key": "site_url",
+          "placeholder": "https://example.com",
+          "label": "Enter the URL below",
+          "validation": "URL format validation with error messages"
+        },
+        {
+          "component": "Roast Button",
+          "type": "st.button",
+          "key": "roast_button",
+          "label": "🔥 Roast My Site",
+          "button_type": "primary",
+          "use_container_width": true,
+          "disabled": false,
+          "triggers": "Full audit process"
+        },
+        {
+          "component": "Progress Bar",
+          "type": "st.progress",
+          "visible": "during audit",
+          "steps": "0-20 (0-12: Screenshot, 13-18: AI Processing, 19-20: Finalize)"
+        },
+        {
+          "component": "Status Text",
+          "type": "st.empty",
+          "visible": "during audit",
+          "updates": "Real-time status messages"
+        }
+      ]
+    },
+    
+    {
+      "section_id": "top_row_metrics",
+      "section_name": "Top Row - Score & Actions",
+      "position": "after hero (when audit complete)",
+      "layout": "3-column (1:1:1 ratio)",
+      "container": "css-card",
+      "components": [
+        {
+          "column": 1,
+          "component": "Overall Site Score",
+          "type": "st.metric",
+          "label": "Overall Site Score",
+          "value": "{score}/100",
+          "source": "roast_data.get('overall_score', 50)"
+        },
+        {
+          "column": 2,
+          "component": "Verdict",
+          "type": "conditional",
+          "conditions": [
+            {
+              "if": "score < 50",
+              "display": "st.error('Verdict: CRITICAL CONDITION')"
+            },
+            {
+              "if": "score < 80",
+              "display": "st.warning('Verdict: NEEDS OPTIMIZATION')"
+            },
+            {
+              "if": "score >= 80",
+              "display": "st.success('Verdict: EXCELLENT')"
+            }
+          ]
+        },
+        {
+          "column": 3,
+          "component": "Report Downloads",
+          "type": "2-column sub-layout",
+          "sub_columns": [
+            {
+              "sub_column": 1,
+              "component": "PDF Download",
+              "type": "st.download_button",
+              "label": "📄 Download PDF",
+              "file_type": "application/pdf",
+              "filename": "audit_{timestamp}.pdf",
+              "use_container_width": true,
+              "locked": false
+            },
+            {
+              "sub_column": 2,
+              "component": "HTML Report",
+              "type": "components.html (JavaScript button)",
+              "label": "📥 Download the Report",
+              "action": "Opens HTML report in new tab",
+              "styling": "background:#ff4b4b; color:white; border-radius:5px"
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "section_id": "shocker_metrics_row1",
+      "section_name": "Shocker Metrics - Row 1",
+      "position": "after top row",
+      "layout": "3-column grid",
+      "components": [
+        {
+          "column": 1,
+          "component": "Performance Radar",
+          "type": "plotly chart (polar)",
+          "title": "📊 Performance Radar",
+          "metrics": [
+            "UX",
+            "Conversion",
+            "Copy",
+            "Visuals",
+            "Trust",
+            "Speed"
+          ],
+          "chart_type": "line_polar",
+          "fill": "toself",
+          "line_color": "#667eea",
+          "fill_color": "rgba(102, 126, 234, 0.3)",
+          "height": 250,
+          "range": [0, 100],
+          "subtitle": "Overall performance across 6 key metrics",
+          "locked": false,
+          "container": "css-card with min-height: 240px, centered content"
+        },
+        {
+          "column": 2,
+          "component": "Cost of Inaction",
+          "type": "metric card",
+          "title": "💸 Cost of Inaction",
+          "value": "${lost_revenue:,.0f}",
+          "calculation": "traffic * 0.02 (lift) * price * 12",
+          "font_size": "2.4rem",
+          "color": "#667eea",
+          "subtitle": "Revenue you leave on the table annually",
+          "container": "css-card with min-height: 240px, centered content"
+        },
+        {
+          "column": 3,
+          "component": "Scroll of Death",
+          "type": "visual metric",
+          "title": "📉 The Scroll of Death",
+          "value": "{page_height:,}px",
+          "visualization": "HTML div with gradient bars",
+          "above_fold": {
+            "height": 800,
+            "color": "green gradient (#00ff00 to #00cc00)",
+            "label": "Above Fold ({fold_height}px)"
+          },
+          "below_fold": {
+            "height": "page_height - 800",
+            "color": "red gradient (#ff0000 to #cc0000)",
+            "label": "Below Fold ({below_fold_percent:.0f}%)",
+            "percentage": "calculated from page_height"
+          },
+          "divider": "yellow line at fold position",
+          "subtitle": "{below_fold_percent:.0f}% of users never see your bottom CTA",
+          "container": "css-card with min-height: 240px, centered content"
+        }
+      ]
+    },
+    
+    {
+      "section_id": "shocker_metrics_row2",
+      "section_name": "Shocker Metrics - Row 2",
+      "position": "after row 1",
+      "layout": "3-column grid",
+      "spacing": "0.5rem margin-top",
+      "components": [
+        {
+          "column": 1,
+          "component": "Competitor Gap",
+          "type": "plotly bar chart",
+          "title": "🥊 Competitor Gap",
+          "chart_data": {
+            "sources": ["You", "Top Competitor"],
+            "values": ["traffic", "competitor_traffic"],
+            "competitor_calculation": "traffic * multiplier (SaaS: 2.5x, Agency: 3.0x, E-commerce: 2.0x)"
+          },
+          "colors": {
+            "You": "#888888",
+            "Top Competitor": "#ff0000"
+          },
+          "height": 180,
+          "subtitle": "Competitors get {multiplier:.1f}x your traffic",
+          "container": "css-card with min-height: 240px, centered content"
+        },
+        {
+          "column": 2,
+          "component": "Industry Insider",
+          "type": "info card",
+          "title": "🧠 Industry Insider",
+          "content": "Random industry fact",
+          "industry_facts": {
+            "SaaS": [
+              "SaaS pages with video convert 80% higher",
+              "Top SaaS sites use social proof in hero section",
+              "SaaS landing pages with clear pricing convert 2.5x better"
+            ],
+            "Agency": [
+              "Agency sites with case studies convert 3x higher",
+              "Top agencies showcase client logos above fold",
+              "Agency pages with testimonials convert 60% better"
+            ],
+            "E-commerce": [
+              "E-com sites with trust badges convert 40% more",
+              "Product pages with reviews convert 2.8x better",
+              "E-com sites with free shipping convert 30% more"
+            ]
+          },
+          "display": "st.info with random fact",
+          "subtitle": "You are missing critical elements found on top sites",
+          "container": "css-card with min-height: 240px, centered content"
+        },
+        {
+          "column": 3,
+          "component": "ROI",
+          "type": "metric card",
+          "title": "🚀 ROI",
+          "value": "{roi_percent:,.0f}%",
+          "calculation": "(lost_revenue / cost * 100) where cost = $19",
+          "font_size": "2.4rem",
+          "color": "#667eea",
+          "subtitle": "Spend ${cost} to recover ${lost_revenue:,.0f}",
+          "container": "css-card with min-height: 240px, centered content"
+        }
+      ]
+    },
+    
+    {
+      "section_id": "price_detector",
+      "section_name": "Price Detector Settings",
+      "position": "after row 2",
+      "layout": "3-column (same line)",
+      "container": "css-card",
+      "components": [
+        {
+          "title": "⚙️ Price Detector",
+          "type": "st.subheader",
+          "columns": [
+            {
+              "column": 1,
+              "component": "Detected Price",
+              "type": "st.number_input",
+              "label": "Detected Price ($)",
+              "key": "main_dashboard_price",
+              "min": 1.0,
+              "max": 10000.0,
+              "step": 1.0,
+              "default": "price from scan_data or 50.0"
+            },
+            {
+              "column": 2,
+              "component": "Monthly Traffic",
+              "type": "st.number_input",
+              "label": "Monthly Traffic",
+              "key": "main_dashboard_traffic",
+              "min": 100,
+              "max": 1000000,
+              "step": 100,
+              "default": "traffic from session_state or 1000"
+            },
+            {
+              "column": 3,
+              "component": "Industry",
+              "type": "st.selectbox",
+              "label": "Industry",
+              "key": "main_dashboard_industry",
+              "options": ["SaaS", "Agency", "E-commerce"],
+              "default": "industry from scan_data or 'SaaS'"
+            }
+          ],
+          "behavior": "Updates session_state and triggers st.rerun() on change"
+        }
+      ]
+    },
+    
+    {
+      "section_id": "executive_summary",
+      "section_name": "Executive Summary",
+      "position": "after price detector",
+      "layout": "full width",
+      "container": "css-card",
+      "components": [
+        {
+          "component": "Section Header",
+          "type": "st.subheader",
+          "content": "🔥 Executive Summary"
+        },
+        {
+          "component": "Roast Summary",
+          "type": "st.markdown",
+          "source": [
+            "roast_data.get('roastSummary')",
+            "roast_data.get('roast_summary')",
+            "roast_data.get('overview', {}).get('executiveSummary')",
+            "roast_data.get('headline_roast')",
+            "fallback: 'Analysis completed'"
+          ],
+          "fallback": "st.warning('Executive summary is being generated...')"
+        },
+        {
+          "component": "Roast Analysis",
+          "type": "st.markdown",
+          "source": "roast_data.get('overview', {}).get('roastAnalysis')",
+          "format": "**Analysis:**\n\n{roast_analysis}",
+          "condition": "if roast_analysis exists and is not empty"
+        },
+        {
+          "component": "Summary Bullets",
+          "type": "st.markdown with conditional styling",
+          "source": "roast_data.get('summary_bullets', [])",
+          "display": "First 5 bullets",
+          "styling": {
+            "if contains '✅'": "st.success",
+            "if contains '❌'": "st.error",
+            "else": "st.info"
+          }
+        },
+        {
+          "component": "Visual Saliency Heatmap",
+          "type": "st.image",
+          "title": "**Visual Saliency - First Impression**",
+          "image_source": "First screenshot from captured_images or uploaded_files",
+          "processing": "generate_heatmap(hero_image)",
+          "caption": "Hero Section Heatmap",
+          "fallback": "st.warning('Heatmap generation failed. Showing original screenshot.')",
+          "stitched_heatmap": "If multiple images, creates stitched heatmap (max 3 images)"
+        }
+      ]
+    },
+    
+    {
+      "section_id": "quick_wins",
+      "section_name": "Quick Wins Section",
+      "position": "after executive summary",
+      "layout": "full width",
+      "condition": "if quick_wins exist",
+      "components": [
+        {
+          "component": "Divider",
+          "type": "st.markdown",
+          "content": "---"
+        },
+        {
+          "component": "Section Header",
+          "type": "st.subheader",
+          "content": "🚀 Quick Wins (Ranked by Impact)"
+        },
+        {
+          "component": "Quick Win Items",
+          "type": "st.expander",
+          "count": "First 3 quick wins",
+          "format": "**{i}. {win.get('title')}** - {win.get('effort')} | {win.get('lift')}",
+          "content": [
+            {
+              "field": "Problem",
+              "type": "st.markdown",
+              "format": "**Problem:** {win.get('problem')}"
+            },
+            {
+              "field": "Fix",
+              "type": "st.markdown",
+              "format": "**Fix:** {win.get('fix')}"
+            },
+            {
+              "field": "Example",
+              "type": "st.code",
+              "format": "HTML code block if win.get('example') exists"
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "section_id": "audit_items",
+      "section_name": "Element-by-Element Audit",
+      "position": "after quick wins",
+      "layout": "full width",
+      "condition": "if audit_items exist",
+      "components": [
+        {
+          "component": "Divider",
+          "type": "st.markdown",
+          "content": "---"
+        },
+        {
+          "component": "Section Header",
+          "type": "st.subheader",
+          "content": "📋 Element-by-Element Audit"
+        },
+        {
+          "component": "Audit Items",
+          "type": "st.expander",
+          "count": "First 6 items",
+          "format": "{status_color} **{item.get('element')}** - {status}",
+          "status_colors": {
+            "Excellent": "🟢",
+            "Good": "🟡",
+            "Satisfactory": "🟠",
+            "Needs Improvement": "🔴",
+            "Failed": "❌",
+            "default": "⚪"
+          },
+          "content": [
+            {
+              "field": "Rationale",
+              "type": "st.markdown",
+              "format": "**Rationale:** {item.get('rationale')}"
+            },
+            {
+              "field": "What's Working",
+              "type": "2-column layout",
+              "column1": {
+                "title": "**✅ What's Working:**",
+                "items": "item.get('working', [])",
+                "display": "st.success('• {item}')"
+              },
+              "column2": {
+                "title": "**❌ What's Not Working:**",
+                "items": "item.get('not_working', [])",
+                "display": "st.error('• {item}')"
+              }
+            },
+            {
+              "field": "Fix",
+              "type": "st.code",
+              "format": "HTML code block",
+              "condition": "if item.get('fix') exists"
+            },
+            {
+              "field": "Expected Impact",
+              "type": "st.info",
+              "format": "**Expected Impact:** {item.get('expected_impact')}",
+              "condition": "if item.get('expected_impact') exists"
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "section_id": "deep_dive",
+      "section_name": "Deep Dive Findings",
+      "position": "after audit items",
+      "layout": "full width tabs",
+      "condition": "if st.session_state['is_paid'] == True",
+      "components": [
+        {
+          "component": "Divider",
+          "type": "st.markdown",
+          "content": "---"
+        },
+        {
+          "component": "Section Header",
+          "type": "st.subheader",
+          "content": "🔍 Deep Dive Findings"
+        },
+        {
+          "component": "Category Tabs",
+          "type": "st.tabs",
+          "source": "categories from detailedAudit or legacy categories",
+          "category_mapping": {
+            "ux": "🎯 UX & Layout",
+            "conversion": "💰 Conversion & Funnel",
+            "copy": "✍️ Copy & Messaging",
+            "visuals": "🎨 Visuals & Brand",
+            "trust": "⚖️ Trust & Credibility",
+            "speed": "⚡ Speed & Technical Health",
+            "default": "📋 {category_name}"
+          },
+          "tab_content": [
+            {
+              "field": "Impact Badge",
+              "type": "conditional",
+              "if": "impact == 'High'",
+              "display": "st.error('Impact: {impact} - Priority Fix!')",
+              "else": "st.warning('Impact: {impact}')"
+            },
+            {
+              "field": "Score & Verdict",
+              "type": "st.write",
+              "format": "**Score:** {score}/100 | **Verdict:** {verdict}"
+            },
+            {
+              "field": "What Works",
+              "type": "st.success",
+              "format": "**✅ What Works:**\n\n{what_works}",
+              "condition": "if what_works exists"
+            },
+            {
+              "field": "What Failed",
+              "type": "st.error",
+              "format": "**[X] What Failed:**\n\n{what_failed}",
+              "condition": "if what_failed exists"
+            },
+            {
+              "field": "Fix Steps",
+              "type": "st.info",
+              "format": "**🔧 Fix Steps:**\n{step}",
+              "condition": "if fix_steps exist",
+              "display": "Each step as st.info"
+            },
+            {
+              "field": "Fallback",
+              "type": "st.info",
+              "content": "No specific findings for this category.",
+              "condition": "if no what_works, what_failed, or fix_steps"
+            }
+          ]
+        }
+      ],
+      "locked_state": {
+        "condition": "if st.session_state['is_paid'] == False",
+        "display": "st.divider() + st.info('🔒 The detailed Deep Dive and PDF Report are locked.')",
+        "button": "st.button('Unlock Full Audit (Simulate Payment)')",
+        "action": "Sets st.session_state['is_paid'] = True and st.rerun()"
+      }
+    }
+  ],
+  
+  "data_sources": {
+    "roast_data": {
+      "overall_score": "0-100 integer",
+      "roastSummary": "string",
+      "roast_summary": "string (fallback)",
+      "overview": {
+        "executiveSummary": "string",
+        "roastAnalysis": "string",
+        "overallScore": "integer"
+      },
+      "headline_roast": "string",
+      "summary_bullets": "array of strings",
+      "quick_wins": "array of objects with title, effort, lift, problem, fix, example",
+      "audit_items": "array of objects with element, status, rationale, working, not_working, fix, expected_impact",
+      "detailedAudit": "object with category keys (ux, conversion, copy, visuals, trust, speed)",
+      "categories": "legacy array of category objects",
+      "radar_scores": "object with UX, Conversion, Copy, Visuals, Trust, Speed scores",
+      "radarMetrics": "object with lowercase ux, conversion, copy, visuals, trust, speed (API/Next)",
+      "revenueLeakEstimate": "disclaimer, methodology, assumptions[], scenarios { low|base|high: { label, conversionUpliftRate } }, annualLeakUsdDefaults optional",
+      "firstImpressionScore": "layerSummary, priority, composite { current, proposed, impact }, subscores headlineClarity|ctaVisibility|visualHierarchy, highPrioritySignals[]",
+      "trustGapIndex": "same shape; subscores testimonials|guarantees|proof|perceivedRisk",
+      "messagingClarityScore": "same shape; subscores valueProposition|readability|specificity"
+    },
+    "session_state": {
+      "roast_data": "main audit data",
+      "captured_images": "array of PIL Images",
+      "uploaded_files": "array of uploaded file objects",
+      "html_content": "string",
+      "page_text": "string",
+      "audit_url": "string",
+      "site_url": "string",
+      "screenshot_path": "string (temp file path)",
+      "radar_chart_path": "string (temp file path)",
+      "heatmap_path": "string (temp file path)",
+      "stitched_heatmap_path": "string (temp file path)",
+      "roi_dashboard_data": {
+        "page_height": "integer",
+        "price_guess": "float",
+        "industry_guess": "string"
+      },
+      "roi_price": "float",
+      "roi_traffic": "integer",
+      "roi_industry": "string",
+      "is_paid": "boolean (default: False)",
+      "scan_id": "string or None"
+    }
+  },
+  
+  "calculations": {
+    "lost_revenue": {
+      "formula": "traffic * 0.02 * price * 12",
+      "description": "Annual revenue loss based on 2% conversion lift",
+      "defaults": {
+        "traffic": 1000,
+        "lift": 0.02,
+        "price": 50.0,
+        "months": 12
+      }
+    },
+    "roi_percent": {
+      "formula": "(lost_revenue / cost * 100)",
+      "description": "ROI percentage",
+      "cost": 19
+    },
+    "competitor_traffic": {
+      "formula": "traffic * multiplier",
+      "multipliers": {
+        "SaaS": 2.5,
+        "Agency": 3.0,
+        "E-commerce": 2.0
+      },
+      "minimum": 1000
+    },
+    "below_fold_percent": {
+      "formula": "((page_height - 800) / page_height * 100)",
+      "description": "Percentage of page below the fold",
+      "fold_height": 800
+    }
+  },
+  
+  "color_scheme": {
+    "primary_gradient": "linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 25%, #c44569 50%, #8b5cf6 75%, #667eea 100%)",
+    "primary_color": "#667eea",
+    "error_color": "#ff4b4b",
+    "warning_color": "#ffa500",
+    "success_color": "#28a745",
+    "card_background": "#26282f",
+    "card_border": "#3a3a3a",
+    "text_primary": "white",
+    "text_secondary": "#64748b",
+    "above_fold_gradient": "linear-gradient(180deg, #00ff00 0%, #00cc00 100%)",
+    "below_fold_gradient": "linear-gradient(180deg, #ff0000 0%, #cc0000 100%)"
+  },
+  
+  "interactions": {
+    "roast_button": {
+      "action": "Triggers full audit process",
+      "steps": [
+        "Screenshot capture (0-12)",
+        "AI processing (13-18)",
+        "Finalization (19-20)"
+      ],
+      "updates": "Progress bar and status text"
+    },
+    "price_detector_inputs": {
+      "action": "Updates session_state values",
+      "triggers": "st.rerun() on change"
+    },
+    "unlock_button": {
+      "condition": "if is_paid == False",
+      "action": "Sets is_paid = True and st.rerun()"
+    }
+  },
+  
+  "conditional_rendering": {
+    "free_tier": {
+      "visible": "All sections except Deep Dive tabs",
+      "locked": "Deep Dive Findings section",
+      "message": "🔒 The detailed Deep Dive and PDF Report are locked."
+    },
+    "paid_tier": {
+      "visible": "All sections including Deep Dive tabs",
+      "unlocked": "Deep Dive Findings with category tabs"
+    }
+  },
+  
+  "notes": [
+    "All sections are wrapped in css-card containers for consistent styling",
+    "Metrics use large font sizes (2.4rem) for emphasis",
+    "Charts use plotly with custom styling (no display mode bar)",
+    "Heatmaps are generated from first screenshot using OpenCV",
+    "PDF and HTML reports are generated on-demand",
+    "All calculations use session_state values that can be adjusted via Price Detector",
+    "The page uses a freemium model with is_paid state controlling Deep Dive access"
+  ]
+}
+
+
+
+

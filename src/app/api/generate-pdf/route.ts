@@ -1,0 +1,109 @@
+import { NextRequest, NextResponse } from "next/server";
+import chromium from "@sparticuz/chromium";
+import { getPuppeteerWithStealth } from "@/lib/screenshot";
+import { generateFreeRoastCertificateHTML, generatePaidAgencyReportHTML } from "@/lib/pdf-templates";
+
+const isLocalDev = process.env.NODE_ENV === "development" || !process.env.VERCEL;
+
+export async function POST(request: NextRequest) {
+  let browser = null;
+
+  try {
+    const body = await request.json();
+    const { roastData, isPaid = false, url = "https://siteroast.ai" } = body;
+
+    if (!roastData) {
+      return NextResponse.json(
+        { error: "Roast data is required" },
+        { status: 400 }
+      );
+    }
+
+    // Generate HTML based on tier
+    const html = isPaid 
+      ? await generatePaidAgencyReportHTML(roastData, url)
+      : await generateFreeRoastCertificateHTML(roastData, url);
+
+    const puppeteer = await getPuppeteerWithStealth();
+
+    const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-blink-features=AutomationControlled",
+        "--disable-features=IsolateOrigins,site-per-process",
+      ],
+      defaultViewport: { width: 1200, height: 1600 },
+    };
+
+    if (!isLocalDev) {
+      launchOptions.args = [
+        ...chromium.args,
+        "--disable-blink-features=AutomationControlled",
+        "--disable-features=IsolateOrigins,site-per-process",
+      ];
+      launchOptions.executablePath = await chromium.executablePath();
+    }
+
+    browser = await puppeteer.launch(launchOptions);
+    const page = await browser.newPage();
+
+    await page.setContent(html, {
+      waitUntil: "networkidle0",
+    });
+
+    await page
+      .evaluate(() => document.fonts?.ready ?? Promise.resolve())
+      .catch(() => undefined);
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "20mm",
+        right: "15mm",
+        bottom: "20mm",
+        left: "15mm",
+      },
+    });
+
+    await browser.close();
+    browser = null;
+
+    const filename = isPaid 
+      ? 'roast-report-full.pdf' 
+      : 'roast-report-teaser.pdf';
+
+    const bytes = new Uint8Array(pdfBuffer);
+    const ab = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength
+    );
+    return new NextResponse(ab, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+      },
+    });
+  } catch (error) {
+    console.error("PDF generation error:", error);
+    
+    if (browser) {
+      await browser.close();
+    }
+
+    return NextResponse.json(
+      { 
+        error: "Failed to generate PDF",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
+      { status: 500 }
+    );
+  }
+}
+
