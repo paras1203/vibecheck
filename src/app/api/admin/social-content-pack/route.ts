@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth } from "@/lib/firebase-admin";
+import { getAdminAuth } from "@/lib/firebase-admin";
 import { isServerAdminEmail } from "@/lib/admin";
 import {
   generateRoastWithFallback,
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
     let decoded;
     try {
-      decoded = await adminAuth.verifyIdToken(match[1]);
+      decoded = await getAdminAuth().verifyIdToken(match[1]);
     } catch {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }

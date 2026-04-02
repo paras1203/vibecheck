@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { takeScreenshot } from "@/lib/screenshot";
-import { adminStorage } from "@/lib/firebase-admin";
+import { getAdminStorage } from "@/lib/firebase-admin";
 
 // Schema for request validation
 const screenshotRequestSchema = z.object({
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     console.log(`Captured ${screenshotBase64Array.length} screenshot chunks`);
 
     // Upload all screenshots to Firebase Storage and get signed URLs
-    const bucket = adminStorage.bucket();
+    const bucket = getAdminStorage().bucket();
     const timestamp = Date.now();
     const screenshotUrls: string[] = [];
 

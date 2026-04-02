@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userRef = adminDb.collection("users").doc(userId);
+    const userRef = getAdminDb().collection("users").doc(userId);
     const userDoc = await userRef.get();
 
     if (!userDoc.exists) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     let deletedRoasts = 0;
 
     try {
-      const scansQuery = adminDb.collection("scans").where("userId", "==", userId);
+      const scansQuery = getAdminDb().collection("scans").where("userId", "==", userId);
       const scansSnapshot = await scansQuery.get();
       deletedScans = scansSnapshot.size;
       const deleteScansPromises = scansSnapshot.docs.map((doc) => doc.ref.delete());
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const roastsQuery = adminDb.collection("roasts").where("userId", "==", userId);
+      const roastsQuery = getAdminDb().collection("roasts").where("userId", "==", userId);
       const roastsSnapshot = await roastsQuery.get();
       deletedRoasts = roastsSnapshot.size;
       const deleteRoastsPromises = roastsSnapshot.docs.map((doc) => doc.ref.delete());

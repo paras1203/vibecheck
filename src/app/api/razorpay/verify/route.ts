@@ -5,7 +5,7 @@ import {
   assertRazorpayPaymentMatchesPlan,
   verifyRazorpayPaymentSignature,
 } from "@/lib/razorpay-server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import { mergePlanAfterPurchase } from "@/lib/plan-merge";
 
 const bodySchema = z.object({
@@ -39,13 +39,13 @@ export async function POST(request: NextRequest) {
     );
 
     const credits = PLAN_PURCHASE_CREDITS[planId as PaidPlanId];
-    const userRef = adminDb.collection("users").doc(userId);
+    const userRef = getAdminDb().collection("users").doc(userId);
     const userDoc = await userRef.get();
     if (!userDoc.exists) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const paySnap = await adminDb
+    const paySnap = await getAdminDb()
       .collection("payments")
       .where("paymentId", "==", razorpay_payment_id)
       .limit(1)
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     });
 
-    await adminDb.collection("payments").add({
+    await getAdminDb().collection("payments").add({
       userId,
       provider: "razorpay",
       orderId: razorpay_order_id,
