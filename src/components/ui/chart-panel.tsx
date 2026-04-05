@@ -37,7 +37,13 @@ export function ChartPanel({
           {description ? <p className="text-caption">{description}</p> : null}
         </div>
       )}
-      <div className="p-4">{children}</div>
+      <div
+        className={cn(
+          variant === "embedded" ? "px-2 py-2 sm:px-2.5 sm:py-2.5" : "p-4"
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 }

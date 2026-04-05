@@ -26,6 +26,21 @@ function checkoutHref(user: User | null, plan: "pro" | "agency") {
   return user ? path : `/login?next=${encodeURIComponent(path)}`;
 }
 
+function usd(n: number) {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
+const LANDING_LIST_SINGLE_USD = 79;
+const LANDING_CHECKOUT_SINGLE_USD = 19;
+const LANDING_BUNDLE_USD = 59;
+const LANDING_BUNDLE_PRIMARY_ANCHOR_USD = LANDING_LIST_SINGLE_USD * 5;
+const LANDING_BUNDLE_SECONDARY_ANCHOR_USD = LANDING_CHECKOUT_SINGLE_USD * 5;
+
 export function PricingSection({ loading, onRoast, user }: PricingSectionProps) {
   return (
     <section id="pricing" className="border-t border-border bg-surface-2 px-4 py-24 md:px-8">
@@ -44,7 +59,7 @@ export function PricingSection({ loading, onRoast, user }: PricingSectionProps) 
             </CardHeader>
             <CardContent className="flex flex-1 flex-col space-y-6 py-6">
               <div className="mb-2 font-mono text-4xl font-semibold tabular-nums text-foreground">
-                ₹0
+                {usd(0)}
               </div>
               <div className="h-8" />
               <ul className="flex-1 list-none space-y-3 text-muted-foreground">
@@ -73,22 +88,29 @@ export function PricingSection({ loading, onRoast, user }: PricingSectionProps) 
 
           <Card className="relative flex h-full flex-col overflow-hidden border-primary/35 bg-surface-1 ring-1 ring-primary/20">
             <div className="absolute right-4 top-4 rounded-lg bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
-              Launch Offer
+              Single roast
             </div>
             <CardHeader>
               <CardTitle>The Fix</CardTitle>
               <CardDescription>Pro Tier</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col space-y-6 py-6">
-              <div className="mb-2 flex items-baseline gap-2">
+              <div className="mb-2 flex flex-wrap items-baseline gap-2">
                 <span className="font-mono text-2xl tabular-nums text-muted-foreground line-through">
-                  ₹12,499
+                  {usd(LANDING_LIST_SINGLE_USD)}
                 </span>
                 <span className="font-mono text-4xl font-semibold tabular-nums text-foreground">
-                  ₹1,599
+                  {usd(LANDING_CHECKOUT_SINGLE_USD)}
                 </span>
               </div>
-              <div className="h-8 text-sm font-semibold text-primary">87% OFF</div>
+              <div className="h-8 text-sm font-semibold text-primary">
+                Save {usd(LANDING_LIST_SINGLE_USD - LANDING_CHECKOUT_SINGLE_USD)} vs list (~
+                {Math.round(
+                  ((LANDING_LIST_SINGLE_USD - LANDING_CHECKOUT_SINGLE_USD) / LANDING_LIST_SINGLE_USD) *
+                    100
+                )}
+                % off)
+              </div>
               <ul className="flex-1 list-none space-y-3 text-muted-foreground">
                 <li className="flex items-center gap-2">
                   <span className="text-foreground">•</span>
@@ -137,14 +159,39 @@ export function PricingSection({ loading, onRoast, user }: PricingSectionProps) 
               <CardDescription>Bulk Option</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-1 flex-col space-y-6 py-6">
-              <div className="mb-2 flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-semibold tabular-nums text-foreground">
-                  ₹4,099
+              <div className="mb-2 flex flex-wrap items-baseline gap-2">
+                <span className="font-mono text-2xl tabular-nums text-muted-foreground line-through">
+                  {usd(LANDING_BUNDLE_PRIMARY_ANCHOR_USD)}
                 </span>
-                <span className="text-muted-foreground">for 5 Roasts</span>
+                <span className="font-mono text-xl tabular-nums text-muted-foreground/80 line-through">
+                  {usd(LANDING_BUNDLE_SECONDARY_ANCHOR_USD)}
+                </span>
+                <span className="font-mono text-4xl font-semibold tabular-nums text-foreground">
+                  {usd(LANDING_BUNDLE_USD)}
+                </span>
+                <span className="text-muted-foreground">for 5 roasts</span>
               </div>
-              <div className="h-8 text-sm text-muted-foreground">
-                Save 50% - Perfect for agencies or teams
+              <div className="space-y-1 text-sm font-semibold text-primary">
+                <p>
+                  Save {usd(LANDING_BUNDLE_PRIMARY_ANCHOR_USD - LANDING_BUNDLE_USD)} vs five at{" "}
+                  {usd(LANDING_LIST_SINGLE_USD)} list each (~
+                  {Math.round(
+                    ((LANDING_BUNDLE_PRIMARY_ANCHOR_USD - LANDING_BUNDLE_USD) /
+                      LANDING_BUNDLE_PRIMARY_ANCHOR_USD) *
+                      100
+                  )}
+                  % off list).
+                </p>
+                <p>
+                  Save another {usd(LANDING_BUNDLE_SECONDARY_ANCHOR_USD - LANDING_BUNDLE_USD)} vs five
+                  × {usd(LANDING_CHECKOUT_SINGLE_USD)} checkouts (~
+                  {Math.round(
+                    ((LANDING_BUNDLE_SECONDARY_ANCHOR_USD - LANDING_BUNDLE_USD) /
+                      LANDING_BUNDLE_SECONDARY_ANCHOR_USD) *
+                      100
+                  )}
+                  % off that stack).
+                </p>
               </div>
               <ul className="flex-1 list-none space-y-3 text-muted-foreground">
                 <li className="flex items-center gap-2">

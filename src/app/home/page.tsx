@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, startTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -16,7 +16,7 @@ import { formatReportDisplayName, reportTimestampFromRoastId } from "@/lib/repor
 import { buildRoastTeaser } from "@/lib/roast-teaser";
 import { RoastGenerationOverlay } from "@/components/landing/roast-generation-overlay";
 import { BRAND_NAME } from "@/lib/brand";
-import { persistRoastForClientNavigation } from "@/lib/roast-storage";
+import { persistRoastForClientNavigation, stripRoastApiBillingFields } from "@/lib/roast-storage";
 import type { AuditReportPayload } from "@/lib/report-html";
 import { isPreviewRoastFree } from "@/lib/credits-config";
 import { ChevronRight } from "lucide-react";
@@ -26,7 +26,7 @@ type RoastPhase = "idle" | "analyzing" | "teaser";
 export default function HomeWorkspacePage() {
   const ok = useRequireAuth();
   const router = useRouter();
-  const { user, refreshProfile } = useAuth();
+  const { user, firebaseUser, refreshProfile, updateCredits } = useAuth();
   const [url, setUrl] = useState("");
   const [device] = useState<"desktop" | "mobile">("desktop");
   const [roastPhase, setRoastPhase] = useState<RoastPhase>("idle");
@@ -74,23 +74,42 @@ export default function HomeWorkspacePage() {
     setError(null);
     setRoastData(null);
     try {
+      const idToken = firebaseUser
+        ? await firebaseUser.getIdToken().catch(() => null)
+        : null;
       const response = await fetch("/api/roast", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, device }),
+        body: JSON.stringify({
+          url,
+          device,
+          ...(idToken ? { idToken } : {}),
+        }),
       });
-      const data = await response.json();
+      const data = (await response.json()) as Record<string, unknown>;
       if (!response.ok) {
-        const errorMsg = data.error || "Failed to generate roast";
-        const details = data.details ? `: ${data.details}` : "";
+        const errorMsg = (data.error as string) || "Failed to generate roast";
+        const details = data.details ? `: ${String(data.details)}` : "";
+        if (response.status === 402) {
+          toast.error("Not enough credits", { description: String(data.details || errorMsg) });
+        }
         throw new Error(`${errorMsg}${details}`);
       }
-      setRoastData(data);
-      setAnalysisComplete(true);
+      const creditsRemaining = data.creditsRemaining;
+      const clean = stripRoastApiBillingFields(data);
+      startTransition(() => {
+        setRoastData(clean);
+        if (typeof creditsRemaining === "number") {
+          updateCredits(creditsRemaining);
+        }
+        setAnalysisComplete(true);
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setRoastPhase("idle");
-      setAnalysisComplete(false);
+      startTransition(() => {
+        setError(err instanceof Error ? err.message : "An error occurred");
+        setRoastPhase("idle");
+        setAnalysisComplete(false);
+      });
     }
   };
 
@@ -102,7 +121,7 @@ export default function HomeWorkspacePage() {
     if (!roastData) return;
     const id = `${Date.now()}`;
     const payload: AuditReportPayload = {
-      ...(roastData as AuditReportPayload),
+      ...(stripRoastApiBillingFields(roastData as Record<string, unknown>) as AuditReportPayload),
       audited_url: url.trim() || (roastData as AuditReportPayload).audited_url,
     };
     try {

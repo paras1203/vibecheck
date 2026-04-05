@@ -6,8 +6,6 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { AppSidebar } from "@/components/app-sidebar";
 import { RoastRadar } from "@/components/roast-radar";
 import {
@@ -16,7 +14,6 @@ import {
 } from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadialChart } from "@/components/ui/radial-chart";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   FileDown,
   Download,
@@ -26,8 +23,6 @@ import {
   Swords,
   Brain,
   Lightbulb,
-  Calculator,
-  Rocket,
   Wrench,
   CircleCheck,
   CircleX,
@@ -49,12 +44,12 @@ import { useBillingBypassUnlock } from "@/hooks/use-billing-bypass-unlock";
 import { SocialContentPackSection } from "@/components/admin/social-content-pack-section";
 import { AuthRequiredDialog } from "@/components/auth-required-dialog";
 import { FullReportUpgradePanel } from "@/components/roast/full-report-upgrade-panel";
+import { ReportQuickFixesBlock } from "@/components/roast/report-quick-fixes-block";
 import { UnlockFullReportButton } from "@/components/roast/unlock-full-report-button";
 import { ShareYourScore } from "@/components/roast/share-your-score";
 import {
   ScoreIntelFootnote,
   MetricIntelFootnote,
-  BenchmarkHint,
   INTEL_ESTIMATED_IMPROVEMENT,
 } from "@/components/roast/report-intel-captions";
 import { IconFrame } from "@/components/ui/icon-frame";
@@ -67,7 +62,6 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { cn } from "@/lib/utils";
 import { formatReportDisplayName, reportTimestampFromRoastId } from "@/lib/report-display-name";
 import {
-  formatEffortLine,
   formatImpactLine,
   LOCKED_INSIGHT_BULLETS,
   scrollDepthNarrative,
@@ -85,10 +79,12 @@ import {
 } from "@/lib/report-copy";
 import {
   buildRevenueLeakEstimate,
-  defaultMonthlySessionsForRoast,
+  DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
+  DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
   fallbackInsightLayers,
 } from "@/lib/insight-layers";
 import { partitionLegalComplianceAuditLast } from "@/lib/legal-compliance-audit";
+import { ensureQuickWinsUpToFour } from "@/lib/quick-wins-fill";
 import type {
   FirstImpressionInsight,
   MessagingClarityInsight,
@@ -101,10 +97,23 @@ import {
   RoastSeoHealthBlock,
   RoastPageSpeedBlock,
   hasRoastSeoHealthContent,
+  hasRoastPageSpeedContent,
 } from "@/components/roast/roast-seo-performance-section";
 import { ScrollOfDeathCard } from "@/components/roast/scroll-of-death-card";
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
+import { buildScrollEffectiveness } from "@/lib/scroll-effectiveness-from-audit";
+import {
+  RADAR_AXIS_EXPLANATIONS,
+  RADAR_AXIS_LABELS,
+  scoreForRadarAxis,
+  radarScoreValueClass,
+} from "@/lib/radar-axis-scores";
+import type {
+  PerformanceGeminiSummary,
+  ScrollEffectiveness,
+  TrafficEstimate,
+} from "@/types/roast-extras";
 
 /**
  * Exact 1:1 migration from main.py render_main_audit_dashboard function (lines 4647-5283)
@@ -178,6 +187,9 @@ interface RoastData {
   seo?: SeoAnalysisResult | null;
   page_type?: string;
   performance?: PageSpeedSummary | null;
+  performanceGemini?: PerformanceGeminiSummary | null;
+  trafficEstimate?: TrafficEstimate;
+  scrollEffectiveness?: ScrollEffectiveness;
 }
 
 function categoryTabIcon(name: string): LucideIcon {
@@ -229,10 +241,9 @@ export default function RoastPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showExportAuthDialog, setShowExportAuthDialog] = useState(false);
-  const [price, setPrice] = useState(50.0);
-  const [traffic, setTraffic] = useState(1000);
+  const [price, setPrice] = useState(DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD);
+  const [traffic, setTraffic] = useState(DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS);
   const [industry, setIndustry] = useState<"SaaS" | "Agency" | "E-commerce">("SaaS");
-  const [openQuickFixIndex, setOpenQuickFixIndex] = useState<number | null>(null);
 
   const reportFileBase = useMemo(() => {
     if (!roastData) return "";
@@ -241,9 +252,8 @@ export default function RoastPage() {
     return formatReportDisplayName(roastData.audited_url, ts);
   }, [roastData, params.id]);
 
-  const isPaidPlan = Boolean(
-    user && (user.plan === "pro" || user.plan === "agency")
-  );
+  const planNorm = String(user?.plan ?? "").toLowerCase();
+  const isPaidPlan = Boolean(user && (planNorm === "pro" || planNorm === "agency"));
   const hasFullReportAccess =
     isPaidPlan ||
     isAdmin ||
@@ -362,11 +372,16 @@ export default function RoastPage() {
   // Update price and industry when roastData loads
   useEffect(() => {
     if (roastData) {
-      const defaultPrice = roastData.price_guess || 50.0;
+      const pg = Number(roastData.price_guess);
+      const priceFromDom =
+        Boolean(roastData.price_from_page) && Number.isFinite(pg) && pg > 0;
+      const defaultPrice = priceFromDom ? pg : DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
       const defaultIndustry = (roastData.industry_guess || "SaaS") as "SaaS" | "Agency" | "E-commerce";
       setPrice(defaultPrice);
       setIndustry(defaultIndustry);
-      setTraffic(defaultMonthlySessionsForRoast(roastData.industry_guess || "SaaS"));
+      setTraffic(
+        roastData.trafficEstimate?.monthlySessions ?? DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS
+      );
     }
   }, [roastData]);
 
@@ -506,21 +521,20 @@ export default function RoastPage() {
   // Extract data (exact from Python)
   const overallScore = roastData.overall_score || roastData.overview?.overallScore || 50;
   const radarScores = roastData.radar_scores || roastData.radarMetrics || {};
-  const quickWins = roastData.quickWins || roastData.quick_wins || [];
+  const quickWins = ensureQuickWinsUpToFour(
+    roastData.quickWins || roastData.quick_wins,
+    roastData.audit_items
+  );
   const detailedAudit = roastData.detailedAudit || {};
   
   // Executive summary + long-form narrative (same fields as API)
   const briefSummary = roastData.hook || roastData.overview?.executiveSummary || roastData.roastSummary || "";
   
-  // Detailed Roast Summary: All 4 parts (for Large 1x1 Grid)
-  const stopper = roastData.hook || roastData.overview?.executiveSummary || roastData.roastSummary || "";
-  
   const roast = roastData.script || roastData.analysis || roastData.overview?.roastAnalysis || "";
   const verdict = roastData.verdict || "";
   const closer = roastData.closer || "";
 
-  // Check if we have detailed roast data to display
-  const hasDetailedRoast = stopper || roast || verdict || closer;
+  const hasDetailedRoastSection = Boolean(roast || verdict || closer);
   const auditItems = partitionLegalComplianceAuditLast(roastData.audit_items || []);
 
   const CATEGORY_TAB_ORDER = [
@@ -535,6 +549,9 @@ export default function RoastPage() {
   // ROI Calculator data (exact from Python lines 2163-2165, 4772-4775)
   const pageHeight = roastData.pageHeight || 3000;
   const scrollHelp = scrollDepthNarrative(roastData.audited_url, pageHeight);
+  const scrollResolved =
+    roastData.scrollEffectiveness ??
+    buildScrollEffectiveness(roastData, roastData.audited_url || "", pageHeight, 800);
 
   const getVerdictText = (score: number) => {
     if (score < 50) return "CRITICAL CONDITION";
@@ -660,9 +677,16 @@ export default function RoastPage() {
         trust: Number(radarScores.Trust ?? radarScores.trust ?? 50),
         speed: Number(radarScores.Speed ?? radarScores.speed ?? 50),
       };
+  const trafficSessionsBaseline =
+    roastData.trafficEstimate?.monthlySessions ?? DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
+  const trafficAssumptionLine =
+    traffic === trafficSessionsBaseline && roastData.trafficEstimate?.note?.trim()
+      ? roastData.trafficEstimate.note.trim()
+      : `Monthly sessions set to ${traffic.toLocaleString()} (editable in model inputs below; illustrative—not from your analytics).`;
   const revenueLeakEstimateResolved = buildRevenueLeakEstimate(traffic, price, {
-    industryLabel: industry,
+    industryLabel: roastData.industry_guess?.trim() || industry,
     priceFromScrape: Boolean(roastData.price_from_page),
+    trafficAssumptionLine,
   });
   const insightFallback = fallbackInsightLayers(radarMetricsLower);
   const firstImpressionLayer =
@@ -670,6 +694,13 @@ export default function RoastPage() {
   const trustGapLayer = roastData.trustGapIndex ?? insightFallback.trustGapIndex;
   const messagingLayer =
     roastData.messagingClarityScore ?? insightFallback.messagingClarityScore;
+
+  const seoHealthBlockData = {
+    seo: roastData.seo,
+    page_type: roastData.page_type,
+    performance: roastData.performance,
+  };
+  const showSeoHealthBlock = hasRoastSeoHealthContent(seoHealthBlockData);
 
   return (
     <SidebarProvider
@@ -720,22 +751,24 @@ export default function RoastPage() {
           </div>
 
           <div className="grid w-full gap-6 rounded-lg border border-border bg-surface-1 p-6 md:grid-cols-12 md:items-stretch md:gap-8 md:p-8">
-            <div className="flex flex-col items-center justify-center md:col-span-5">
-              <p className="text-caption mb-3 uppercase tracking-wide text-muted-foreground">
-                Overall score
-              </p>
-              <RadialChart value={overallScore} size={160} strokeWidth={12} showLabel={false} />
-              <p className="mt-3 text-center font-mono text-2xl font-semibold tabular-nums text-primary">
-                {Math.round(overallScore)}
-                <span className="text-sm font-normal text-muted-foreground">/100</span>
-              </p>
-              <ScoreIntelFootnote
-                overallScore={Math.round(overallScore)}
-                auditItemCount={auditItems.length}
-                className="md:px-0"
-              />
+            <div className="flex w-full flex-col items-center justify-center md:col-span-3">
+              <div className="flex w-full flex-col items-center justify-center rounded-xl border border-border-muted bg-surface-2/30 px-4 py-5 md:px-5 md:py-6">
+                <p className="text-caption mb-4 uppercase tracking-wide text-muted-foreground">
+                  Overall score
+                </p>
+                <RadialChart value={overallScore} size={140} strokeWidth={10} showLabel={false} />
+                <p className="mt-4 text-center font-mono text-3xl font-semibold tabular-nums text-primary">
+                  {Math.round(overallScore)}
+                  <span className="text-base font-normal text-muted-foreground">/100</span>
+                </p>
+                <ScoreIntelFootnote
+                  overallScore={Math.round(overallScore)}
+                  auditItemCount={auditItems.length}
+                  className="mt-1 w-full max-w-none text-center md:text-center"
+                />
+              </div>
             </div>
-            <div className="flex flex-col justify-center gap-5 border-t border-border-muted pt-6 md:col-span-7 md:border-l md:border-t-0 md:pl-8 md:pt-0">
+            <div className="flex flex-col justify-center gap-5 border-t border-border-muted pt-6 md:col-span-9 md:border-l md:border-t-0 md:pl-8 md:pt-0">
               <div>
                 <p className="text-caption mb-1.5 text-muted-foreground">Verdict</p>
                 <p className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
@@ -743,31 +776,107 @@ export default function RoastPage() {
                 </p>
               </div>
               {briefSummary ? (
-                <div className="rounded-lg border border-border-muted bg-surface-2/40 p-4 md:p-5">
-                  <p className="text-sm leading-relaxed text-foreground md:text-base whitespace-pre-line">
+                <div className="rounded-xl border border-border-muted bg-surface-2/40 p-5 md:p-6">
+                  <p className="text-base leading-relaxed text-foreground whitespace-pre-wrap">
                     {stripNarrativeSegmentLabels(briefSummary)}
                   </p>
                 </div>
               ) : null}
             </div>
+            <div className="col-span-full border-t border-border-muted pt-6">
+              <ReportQuickFixesBlock
+                quickWins={quickWins}
+                hasFullReportAccess={hasFullReportAccess}
+                onUnlockFullReport={unlockFullReport}
+              />
+            </div>
+            {Object.keys(radarScores).length > 0 ? (
+              <div className="col-span-full border-t border-border-muted pt-6">
+                <Card className="overflow-hidden border-border bg-card">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base font-semibold">
+                      <IconFrame size="sm" className="bg-primary/10 text-primary">
+                        <Radar className="size-4 stroke-[1.5]" />
+                      </IconFrame>
+                      Site Score
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="pb-4 pt-0">
+                    <div className="flex w-full flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
+                      <div className="min-w-0 flex-1">
+                        <div className="grid grid-cols-3 gap-2">
+                          {RADAR_AXIS_LABELS.map((label) => {
+                            const axisScore = scoreForRadarAxis(radarScores, label);
+                            return (
+                              <div
+                                key={label}
+                                className="flex min-h-[6.75rem] flex-col justify-center rounded-lg border border-border-muted bg-surface-2/30 px-3 py-4 text-center sm:min-h-[7.25rem]"
+                              >
+                                <div className="text-xs font-medium text-muted-foreground">{label}</div>
+                                <div
+                                  className={cn(
+                                    "mt-1 font-mono text-sm font-semibold tabular-nums",
+                                    radarScoreValueClass(axisScore)
+                                  )}
+                                >
+                                  {axisScore}
+                                </div>
+                                <p className="mt-2 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
+                                  {RADAR_AXIS_EXPLANATIONS[label]}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="mx-auto w-full min-w-0 max-w-[268px] shrink-0 lg:mx-0 lg:w-[268px] lg:max-w-[268px]">
+                        <div className="min-h-[240px] w-full min-w-0">
+                          <RoastRadar radarMetrics={radarScores} />
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null}
           </div>
 
-          {hasRoastSeoHealthContent({
-            seo: roastData.seo,
-            page_type: roastData.page_type,
-            performance: roastData.performance,
-          }) ? (
-            <>
-              <SectionHeader title="SEO health" size="compact" />
-              <RoastSeoHealthBlock
-                data={{
-                  seo: roastData.seo,
-                  page_type: roastData.page_type,
-                  performance: roastData.performance,
-                }}
-              />
-            </>
-          ) : null}
+          <SectionHeader
+            title="Insights & actions"
+            description="SEO snapshot with fixes, plus AI-generated signals from your audit."
+            size="compact"
+          />
+
+          <div className={cn("w-full", !showSeoHealthBlock && "md:max-w-3xl")}>
+            <Card className="flex h-full min-w-0 flex-col border-border bg-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm">
+                  <IconFrame size="sm" className="bg-primary/10 text-primary">
+                    <Brain className="size-4 stroke-[1.5]" />
+                  </IconFrame>
+                  AI Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col justify-center gap-2 pt-0">
+                <ul className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                  {insiderPoints.map((line, i) => (
+                    <li
+                      key={`insider-${i}`}
+                      className="flex gap-2 rounded-lg border border-border bg-muted/50 p-2"
+                    >
+                      <IconFrame
+                        size="sm"
+                        className="mt-0.5 shrink-0 border-accent/30 bg-accent/10 text-accent"
+                      >
+                        <Lightbulb className="size-4 stroke-[1.5]" />
+                      </IconFrame>
+                      <p className="text-xs leading-snug text-foreground">{line}</p>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
 
           <SectionHeader
             title="Executive insight layers"
@@ -780,6 +889,8 @@ export default function RoastPage() {
               estimate={revenueLeakEstimateResolved}
               traffic={traffic}
               price={price}
+              onTrafficChange={setTraffic}
+              onPriceChange={setPrice}
             />
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <InsightLayerCard
@@ -799,6 +910,15 @@ export default function RoastPage() {
               />
             </div>
           </div>
+
+          {showSeoHealthBlock ? (
+            <div className="min-w-0 w-full">
+              <RoastSeoHealthBlock
+                data={seoHealthBlockData}
+                hasFullReportAccess={hasFullReportAccess}
+              />
+            </div>
+          ) : null}
 
           {isAdmin ? (
             <ShareYourScore roastData={roastData} overallScore={overallScore} />
@@ -827,50 +947,27 @@ export default function RoastPage() {
 
           <SectionHeader
             title="Performance & economics"
-            description="Lab speed (when available), radar, revenue at risk, competitive context, scroll behavior, and viewport attention."
+            description="Lab speed (when available), revenue at risk, competitive context, scroll behavior, and viewport attention."
             size="compact"
           />
 
-          <RoastPageSpeedBlock
-            data={{
-              seo: roastData.seo,
-              page_type: roastData.page_type,
-              performance: roastData.performance,
-            }}
-          />
+          {hasRoastPageSpeedContent({
+            seo: roastData.seo,
+            page_type: roastData.page_type,
+            performance: roastData.performance,
+            performanceGemini: roastData.performanceGemini,
+          }) ? (
+            <RoastPageSpeedBlock
+              data={{
+                seo: roastData.seo,
+                page_type: roastData.page_type,
+                performance: roastData.performance,
+                performanceGemini: roastData.performanceGemini,
+              }}
+            />
+          ) : null}
 
-          <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
-            {Object.keys(radarScores).length > 0 && (
-              <Card className="flex h-full flex-col overflow-hidden border-border bg-card">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                    <IconFrame size="sm" className="bg-primary/10 text-primary">
-                      <Radar className="size-4 stroke-[1.5]" />
-                    </IconFrame>
-                    Site Score Radar
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="relative flex flex-1 flex-col justify-center pb-4 pt-0">
-                  {!hasFullReportAccess && (
-                    <div className="mb-2 grid grid-cols-3 gap-1 text-xs text-muted-foreground">
-                      {Object.entries(radarScores).map(([k, v]) => (
-                        <span
-                          key={k}
-                          className="truncate rounded border border-border-muted px-1 py-0.5 text-center font-mono tabular-nums"
-                          title={`${k}: ${v}`}
-                        >
-                          {k}: {v}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex min-h-[200px] flex-1 items-center justify-center">
-                    <RoastRadar radarMetrics={radarScores} />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
+          <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 md:gap-5">
             <Card className="flex h-full flex-col border-border bg-card">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base font-semibold">
@@ -930,6 +1027,7 @@ export default function RoastPage() {
             foldHeight={foldHeight}
             pageHeight={pageHeight}
             scrollHelp={scrollHelp}
+            scrollEffectiveness={scrollResolved}
           />
 
           <AttentionHeatmapPanel
@@ -937,259 +1035,50 @@ export default function RoastPage() {
             siteLabel={roastData.audited_url}
           />
 
-          <SectionHeader
-            title="Insights & actions"
-            description="Industry signal, revenue model, and prioritized quick wins."
-            size="compact"
-          />
-
-          {/* 3x1 Grid: Industry Insight, Revenue Impact Calculator, Quick Fixes (25%, 25%, 50%) */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full" style={{ minHeight: '240px' }}>
-            {/* Industry Insight - 25% (1/4) */}
-            <Card className="border-border bg-card flex flex-col h-full">
+          {hasDetailedRoastSection ? (
+            <Card className="w-full overflow-visible border-border bg-surface-1">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <IconFrame size="sm" className="bg-primary/10 text-primary">
-                    <Brain className="size-4 stroke-[1.5]" />
-                  </IconFrame>
-                  Industry Insider
-                </CardTitle>
+                <CardTitle className="text-lg font-semibold">Executive summary</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Condensed narrative from the full audit—analysis, verdict, and recommended direction.
+                </p>
               </CardHeader>
-              <CardContent className="pt-0 flex flex-col justify-center flex-1 gap-2">
-                <ul className="space-y-2">
-                  {insiderPoints.map((line, i) => (
-                    <li
-                      key={`insider-${i}`}
-                      className="flex gap-2 rounded-lg border border-border bg-muted/50 p-2"
-                    >
-                      <IconFrame
-                        size="sm"
-                        className="mt-0.5 shrink-0 border-accent/30 bg-accent/10 text-accent"
-                      >
-                        <Lightbulb className="size-4 stroke-[1.5]" />
-                      </IconFrame>
-                      <p className="text-xs text-foreground leading-snug">{line}</p>
-                    </li>
-                  ))}
-                </ul>
-                <BenchmarkHint className="mt-1" />
-              </CardContent>
-            </Card>
-
-            {/* Revenue Impact Calculator - 25% (1/4) */}
-            <Card className="border-border bg-card flex flex-col h-full">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <IconFrame size="sm" className="bg-primary/10 text-primary">
-                    <Calculator className="size-4 stroke-[1.5]" />
-                  </IconFrame>
-                  Revenue Impact Calculator
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0 flex flex-col justify-center flex-1">
-                <div className="space-y-3">
-                  <div>
-                    <Label htmlFor="price" className="text-xs">Est. monthly order value ($)</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      min={1}
-                      max={10000}
-                      step={1}
-                      value={price}
-                      onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="traffic" className="text-xs">Monthly Traffic</Label>
-                    <Input
-                      id="traffic"
-                      type="number"
-                      min={100}
-                      max={1000000}
-                      step={100}
-                      value={traffic}
-                      onChange={(e) => setTraffic(parseInt(e.target.value) || 0)}
-                      className="h-8 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="industry" className="text-xs">Industry</Label>
-                    <select
-                      id="industry"
-                      value={industry}
-                      onChange={(e) =>
-                        setIndustry(e.target.value as "SaaS" | "Agency" | "E-commerce")
-                      }
-                      className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-xs text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="SaaS">SaaS</option>
-                      <option value="Agency">Agency</option>
-                      <option value="E-commerce">E-commerce</option>
-                    </select>
-                  </div>
-                  {roastData.price_billing_note ? (
-                    <p className="text-[11px] leading-snug text-muted-foreground">
-                      {roastData.price_billing_note}
-                    </p>
+              <CardContent className="overflow-visible pb-8 pt-0">
+                <div className="space-y-8 rounded-lg border border-border bg-muted/30 p-6 md:p-8">
+                  {roast ? (
+                    <section className="min-w-0">
+                      <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
+                        Analysis
+                      </h3>
+                      <p className="text-base leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {stripNarrativeSegmentLabels(roast)}
+                      </p>
+                    </section>
                   ) : null}
-                  <BenchmarkHint className="mt-2" />
+                  {verdict ? (
+                    <section className="min-w-0 border-t border-border-muted pt-8">
+                      <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
+                        Verdict
+                      </h3>
+                      <p className="text-base leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {stripNarrativeSegmentLabels(verdict)}
+                      </p>
+                    </section>
+                  ) : null}
+                  {closer ? (
+                    <section className="min-w-0 border-t border-border-muted pt-8">
+                      <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
+                        What to do next
+                      </h3>
+                      <p className="text-base leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {stripNarrativeSegmentLabels(closer)}
+                      </p>
+                    </section>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>
-
-            {/* Quick Fixes - 50% (2/4) */}
-            <Card className="md:col-span-2 border-border bg-card flex flex-col h-full overflow-hidden">
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <IconFrame size="sm" className="bg-primary/10 text-primary">
-                    <Rocket className="size-4 stroke-[1.5]" />
-                  </IconFrame>
-                  Quick Fixes
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-1 flex-col gap-2 overflow-y-auto pt-0">
-                <MetricIntelFootnote className="mt-0 mb-0.5">
-                  {INTEL_ESTIMATED_IMPROVEMENT} when prioritized fixes ship (typical range, not guaranteed).
-                </MetricIntelFootnote>
-                {quickWins.length > 0 ? (
-                  quickWins.slice(0, hasFullReportAccess ? quickWins.length : 3).map((win, idx) => {
-                    const effortLine = formatEffortLine(win.effort);
-                    const impactLine = formatImpactLine(win.lift);
-                    const detailLocked = !hasFullReportAccess && idx >= 1;
-
-                    return (
-                      <Sheet key={idx} open={openQuickFixIndex === idx} onOpenChange={(open) => setOpenQuickFixIndex(open ? idx : null)}>
-                        <div className="relative rounded-lg border border-border bg-surface-2/35 p-4 transition-colors hover:bg-surface-2/50">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <h4 className="mb-2 text-sm font-semibold leading-tight">
-                                {idx + 1}. {win.title || win.elementName || "Quick win"}
-                              </h4>
-                              <p className="text-xs text-muted-foreground">{effortLine}</p>
-                              <p className="text-xs text-muted-foreground">{impactLine}</p>
-                              {detailLocked ? (
-                                <ul className="mt-3 list-none space-y-1 border-t border-border-muted pt-3 text-xs text-muted-foreground">
-                                  {LOCKED_INSIGHT_BULLETS.map((line, i) => (
-                                    <li key={i} className="flex gap-2 border-l-2 border-primary/25 pl-2">
-                                      <span className="select-none">•</span>
-                                      <span>{line}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : null}
-                            </div>
-                            <SheetTrigger asChild disabled={detailLocked}>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="shrink-0 text-xs"
-                                disabled={detailLocked}
-                              >
-                                View Details
-                              </Button>
-                            </SheetTrigger>
-                          </div>
-                          {detailLocked ? (
-                            <div className="mt-3 border-t border-border-muted pt-3 text-center">
-                              <p className="text-[11px] text-muted-foreground">{INLINE_UPGRADE_NUDGE}</p>
-                              <div className="mt-2 flex flex-wrap justify-center gap-2">
-                                <UnlockFullReportButton
-                                  size="sm"
-                                  onUnlock={unlockFullReport}
-                                />
-                                <Button size="sm" variant="outline" className="text-xs" asChild>
-                                  <Link href="#full-report-upgrade">Upgrade section</Link>
-                                </Button>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                        <SheetContent side="bottom" className="h-[80vh] overflow-y-auto">
-                          <SheetHeader>
-                            <SheetTitle>{win.title || win.elementName || "Quick Win"}</SheetTitle>
-                          </SheetHeader>
-                          <div className="mt-6 space-y-4">
-                            <div>
-                              <h4 className="font-semibold mb-2 text-sm">Effort</h4>
-                              <p className="text-sm text-muted-foreground">{effortLine}</p>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2 text-sm">Impact</h4>
-                              <p className="text-sm text-muted-foreground">{impactLine}</p>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2 text-sm">Problem</h4>
-                              <p className="text-sm text-muted-foreground">{win.problem || "No specific problem identified."}</p>
-                            </div>
-                      <div>
-                              <h4 className="font-semibold mb-2 text-sm">How to Fix</h4>
-                              <p className="text-sm text-muted-foreground">{win.fix || "No fix details available."}</p>
-                      </div>
-                            <div>
-                              <h4 className="font-semibold mb-2 text-sm">Technical Details</h4>
-                              <div className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
-                                {win.example ? (
-                                  <code className="text-xs block whitespace-pre-wrap break-all">{win.example}</code>
-                                ) : (
-                                  <p className="text-xs italic">{win.fix || "No technical details available."}</p>
-                    )}
-                  </div>
-                            </div>
-                          </div>
-                        </SheetContent>
-                      </Sheet>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-muted-foreground">No quick fixes available.</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Detailed Roast Summary Box - 4-Part Viral Video Script */}
-          {hasDetailedRoast && (
-            <Card
-              className="w-full overflow-visible border-border bg-surface-1"
-              style={{ height: "auto", minHeight: "auto" }}
-            >
-              <CardContent className="space-y-8 overflow-visible pb-8 pt-8">
-                {stopper && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-6">
-                    <p className="text-lg font-medium leading-relaxed text-card-foreground whitespace-pre-line">
-                      {stripNarrativeSegmentLabels(stopper)}
-                    </p>
-                  </div>
-                )}
-
-                {roast && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-8">
-                    <p className="text-base leading-relaxed text-card-foreground whitespace-pre-wrap">
-                      {stripNarrativeSegmentLabels(roast)}
-                    </p>
-                  </div>
-                )}
-
-                {verdict && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-6">
-                    <p className="text-lg font-medium leading-relaxed text-card-foreground whitespace-pre-line">
-                      {stripNarrativeSegmentLabels(verdict)}
-                    </p>
-                  </div>
-                )}
-
-                {closer && (
-                  <div className="rounded-lg border border-border bg-muted/30 p-6">
-                    <p className="text-lg font-medium leading-relaxed text-card-foreground whitespace-pre-line">
-                      {stripNarrativeSegmentLabels(closer)}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          ) : null}
 
           {/* Element-by-element audit (above deep dive) */}
           {auditItems.length > 0 && (
@@ -1231,34 +1120,43 @@ export default function RoastPage() {
                           </ul>
                         ) : (
                           <>
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                              {item.working && item.working.length > 0 && (
-                                <div>
-                                  <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-                                    <CircleCheck className="size-4 shrink-0 stroke-[1.5] text-chart-4" />
-                                    What&apos;s Working:
-                                  </p>
-                                  <ul className="list-inside list-disc space-y-1 text-sm">
-                                    {item.working.map((w, i) => (
-                                      <li key={i}>{w}</li>
-                                    ))}
-                                  </ul>
+                            {(item.working && item.working.length > 0) ||
+                            (item.not_working && item.not_working.length > 0) ? (
+                              <div className="rounded-xl border border-border-muted bg-muted/25 p-4 md:p-5">
+                                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6">
+                                  {item.working && item.working.length > 0 ? (
+                                    <div className="min-w-0">
+                                      <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+                                        <CircleCheck className="size-4 shrink-0 stroke-[1.5] text-chart-4" />
+                                        What&apos;s working
+                                      </p>
+                                      <ul className="ml-1 list-outside list-disc space-y-2 pl-5 text-sm leading-snug text-foreground marker:text-chart-4">
+                                        {item.working.map((w, i) => (
+                                          <li key={i} className="pl-0.5">
+                                            {w}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ) : null}
+                                  {item.not_working && item.not_working.length > 0 ? (
+                                    <div className="min-w-0">
+                                      <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+                                        <CircleX className="size-4 shrink-0 stroke-[1.5] text-destructive" />
+                                        What&apos;s not working
+                                      </p>
+                                      <ul className="ml-1 list-outside list-disc space-y-2 pl-5 text-sm leading-snug text-foreground marker:text-destructive">
+                                        {item.not_working.map((nw, i) => (
+                                          <li key={i} className="pl-0.5">
+                                            {nw}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ) : null}
                                 </div>
-                              )}
-                              {item.not_working && item.not_working.length > 0 && (
-                                <div>
-                                  <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold">
-                                    <CircleX className="size-4 shrink-0 stroke-[1.5] text-destructive" />
-                                    What&apos;s Not Working:
-                                  </p>
-                                  <ul className="list-inside list-disc space-y-1 text-sm">
-                                    {item.not_working.map((nw, i) => (
-                                      <li key={i}>{nw}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
+                              </div>
+                            ) : null}
                             {item.fix && (
                               <div className="mt-3">
                                 <p className="mb-1 flex items-center gap-1.5 text-sm font-semibold">

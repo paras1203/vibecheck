@@ -78,8 +78,8 @@ export function RoastRadar({ radarMetrics }: RoastRadarProps) {
           <RadarChart
             responsive
             data={data}
-            margin={{ top: 16, right: 16, bottom: 16, left: 16 }}
-            outerRadius="72%"
+            margin={{ top: 10, right: 10, bottom: 10, left: 10 }}
+            outerRadius="78%"
           >
             <PolarGrid stroke={gridStroke} strokeOpacity={1} />
             <PolarAngleAxis

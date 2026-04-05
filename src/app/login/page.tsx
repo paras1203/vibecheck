@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { HeroHighlight } from "@/components/ui/hero-highlight";
 import { Navbar } from "@/components/navbar";
@@ -8,7 +8,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
+import Link from "next/link";
 import { BRAND_NAME } from "@/lib/brand";
 
 function safeInternalNext(raw: string | null): string {
@@ -32,7 +33,10 @@ function LoginInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextPath = safeInternalNext(searchParams.get("next"));
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const modeParam = searchParams.get("mode");
+  const [mode, setMode] = useState<"signin" | "signup">(
+    modeParam === "signup" ? "signup" : "signin"
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +46,16 @@ function LoginInner() {
   const [linkSent, setLinkSent] = useState(false);
 
   useEffect(() => {
-    if (user && !loading && authResolved) {
-      router.push(nextPath);
+    if (user && !loading && authResolved && !isSyncing) {
+      router.replace(nextPath);
     }
-  }, [user, loading, authResolved, router, nextPath]);
+  }, [user, loading, authResolved, isSyncing, router, nextPath]);
+
+  useEffect(() => {
+    if (modeParam === "signup" || modeParam === "signin") {
+      setMode(modeParam === "signup" ? "signup" : "signin");
+    }
+  }, [modeParam]);
 
   useEffect(() => {
     if (typeof window === "undefined" || loading) return;
@@ -67,19 +77,20 @@ function LoginInner() {
   const busy = loading || isSyncing;
 
   const onGoogle = async () => {
-    setError(null);
+    startTransition(() => setError(null));
     try {
       await handleGoogleAuth();
-      router.push(nextPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Google sign-in failed");
+      startTransition(() =>
+        setError(e instanceof Error ? e.message : "Google sign-in failed")
+      );
     }
   };
 
   const onEmail = async () => {
-    setError(null);
+    startTransition(() => setError(null));
     if (!email.trim() || !password) {
-      setError("Enter email and password.");
+      startTransition(() => setError("Enter email and password."));
       return;
     }
     try {
@@ -88,44 +99,55 @@ function LoginInner() {
       } else {
         await handleEmailSignIn(email, password);
       }
-      router.push(nextPath);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Email authentication failed");
+      startTransition(() =>
+        setError(e instanceof Error ? e.message : "Email authentication failed")
+      );
     }
   };
 
   const onEmailLink = async () => {
-    setError(null);
-    setLinkSent(false);
+    startTransition(() => {
+      setError(null);
+      setLinkSent(false);
+    });
     if (!email.trim()) {
-      setError("Enter your email to receive a sign-in link.");
+      startTransition(() => setError("Enter your email to receive a sign-in link."));
       return;
     }
     setLinkBusy(true);
     try {
       await sendEmailSignInLink(email, nextPath);
-      setLinkSent(true);
+      startTransition(() => setLinkSent(true));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send sign-in link");
+      startTransition(() =>
+        setError(e instanceof Error ? e.message : "Could not send sign-in link")
+      );
     } finally {
       setLinkBusy(false);
     }
   };
 
   const onForgotPassword = async () => {
-    setError(null);
-    setResetMessage(null);
+    startTransition(() => {
+      setError(null);
+      setResetMessage(null);
+    });
     const target = email.trim();
     if (!target) {
-      setError("Enter your email above, then tap forgot password.");
+      startTransition(() => setError("Enter your email above, then tap forgot password."));
       return;
     }
     setResetBusy(true);
     try {
       await sendPasswordResetToEmail(target);
-      setResetMessage("If an account exists for that email, we sent a reset link.");
+      startTransition(() =>
+        setResetMessage("If an account exists for that email, we sent a reset link.")
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not send reset email");
+      startTransition(() =>
+        setError(e instanceof Error ? e.message : "Could not send reset email")
+      );
     } finally {
       setResetBusy(false);
     }
@@ -136,7 +158,18 @@ function LoginInner() {
       <HeroHighlight containerClassName="!h-auto min-h-screen bg-background">
         <Navbar />
         <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-20 md:px-8">
-          <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-card/80 p-8 shadow-sm backdrop-blur">
+          <div className="relative w-full max-w-md space-y-6 rounded-xl border border-border bg-card/80 p-8 pt-12 shadow-sm backdrop-blur">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+              asChild
+            >
+              <Link href="/" aria-label="Close">
+                <X className="size-5" />
+              </Link>
+            </Button>
             <div className="text-center">
               <h1 className="text-3xl font-semibold tracking-tight text-foreground">
                 {mode === "signup" ? "Welcome" : "Welcome back"}

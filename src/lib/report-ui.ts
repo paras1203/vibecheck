@@ -24,6 +24,15 @@ export function formatImpactLine(lift: string | undefined): string {
   return `Impact: ${cleaned}`;
 }
 
+/** Same as formatEffortLine / formatImpactLine without the leading "Effort:" / "Impact:" (for UI that already labels the section). */
+export function effortDetailBody(effortRaw: string | undefined): string {
+  return formatEffortLine(effortRaw).replace(/^Effort:\s*/i, "").trim();
+}
+
+export function impactDetailBody(lift: string | undefined): string {
+  return formatImpactLine(lift).replace(/^Impact:\s*/i, "").trim();
+}
+
 export const LOCKED_INSIGHT_BULLETS = [
   "Issue → evidence → fix sequence (full layer)",
   "Benchmarked context vs. generic tips",
@@ -47,7 +56,11 @@ export function scrollDepthNarrative(
   }
   const below = Math.max(0, pageHeight - foldHeight);
   const pct = pageHeight > 0 ? (below / pageHeight) * 100 : 0;
-  const situation = `For ${host}, about ${pct.toFixed(0)}% of total page height sits below a typical first viewport (~${foldHeight}px). Visitors who never scroll that far miss CTAs, pricing, and proof placed deeper on the page.`;
-  const action = `Move your clearest value line, one proof point, and the primary CTA into the first screen; add a second, lighter CTA after the first full section so scanners who scroll only partway still have a path to convert.`;
+  const situation =
+    pct >= 55
+      ? `${host} reads as a long page in this snapshot: most of what we show appears after the first screen, so visitors who don’t scroll may miss key offers or proof.`
+      : `${host} shows more in the first screen in this snapshot—still keep one clear action and one proof line up top.`;
+  const action =
+    "Put your main ask and one trust signal high; add a lighter second action after the first section if the page is long.";
   return { situation, action };
 }

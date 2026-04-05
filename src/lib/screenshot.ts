@@ -1,5 +1,6 @@
 import chromium from "@sparticuz/chromium";
 import type { Browser, Page } from "puppeteer-core";
+import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
 
 // Detect if we're in a local development environment
 const isLocalDev = process.env.NODE_ENV === "development" || !process.env.VERCEL;
@@ -153,7 +154,7 @@ export async function takeScreenshot(url: string, device: 'desktop' | 'mobile' =
         "--disable-blink-features=AutomationControlled", // Critical: Hides the "robot" flag
         "--disable-features=IsolateOrigins,site-per-process",
       ];
-      launchOptions.executablePath = await chromium.executablePath();
+      launchOptions.executablePath = await resolveChromiumExecutablePath();
     }
 
     browser = await puppeteer.launch(launchOptions);

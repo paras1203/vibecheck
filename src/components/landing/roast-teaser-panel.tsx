@@ -89,7 +89,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
           </div>
 
           <div className="mt-3 rounded-lg border border-border-muted bg-surface-2/25 px-3 py-3 sm:px-4">
-            <p className="text-label mb-2 text-muted-foreground">Industry insider</p>
+            <p className="text-label mb-2 text-muted-foreground">AI Insights</p>
             <ul className="space-y-2 text-sm text-foreground">
               {teaser.insiderLines.map((line, i) => (
                 <li key={`teaser-insider-${i}`} className="flex gap-2">
@@ -101,7 +101,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
           </div>
 
           <div className="mt-3">
-            <p className="text-label mb-2 text-muted-foreground">Site score radar (six axes)</p>
+            <p className="text-label mb-2 text-muted-foreground">Site Score</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
               {radarEntries.map(([label, score]) => (
                 <div

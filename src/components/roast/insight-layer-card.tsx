@@ -3,17 +3,27 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { InsightLayerBlock, InsightPriority, ScoreTriple } from "@/types/insight-layers";
+import { cn } from "@/lib/utils";
 
-function priorityBadgeVariant(
-  p: InsightPriority
-): "destructive" | "secondary" | "outline" {
+function priorityLabel(p: InsightPriority): string {
   switch (p) {
     case "high":
-      return "destructive";
+      return "High";
     case "medium":
-      return "secondary";
+      return "Medium";
     default:
-      return "outline";
+      return "Low";
+  }
+}
+
+function priorityBadgeClass(p: InsightPriority): string {
+  switch (p) {
+    case "high":
+      return "border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/15";
+    case "medium":
+      return "border-amber-500/45 bg-amber-500/10 text-amber-800 dark:text-amber-400 hover:bg-amber-500/15";
+    default:
+      return "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 hover:bg-emerald-500/15";
   }
 }
 
@@ -54,16 +64,20 @@ export function InsightLayerCard({ title, layer, showSubscores }: Props) {
   return (
     <Card className="border-border bg-card">
       <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <CardTitle className="text-base">{title}</CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-caption text-muted-foreground">Priority</span>
-            <Badge variant={priorityBadgeVariant(priority)} className="text-xs uppercase">
-              {priority}
-            </Badge>
-          </div>
+        <CardTitle className="text-base leading-snug">{title}</CardTitle>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-caption text-muted-foreground">Priority</span>
+          <Badge
+            variant="outline"
+            className={cn(
+              "text-xs font-semibold normal-case tracking-tight",
+              priorityBadgeClass(priority)
+            )}
+          >
+            {priorityLabel(priority)}
+          </Badge>
         </div>
-        <p className="text-sm leading-relaxed text-muted-foreground">{layerSummary}</p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{layerSummary}</p>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <div className="rounded-lg border border-border-muted bg-surface-2/20 p-3">

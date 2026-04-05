@@ -75,10 +75,14 @@ export async function assertRazorpayPaymentMatchesPlan(
     throw new Error("Payment does not match order");
   }
   const expected = PLAN_AMOUNT_PAISE[planId];
-  if (Number(payment.amount) !== expected) {
-    throw new Error("Payment amount mismatch");
+  const paidAmount = Number(payment.amount);
+  if (!Number.isFinite(paidAmount) || paidAmount !== expected) {
+    throw new Error(
+      `Payment amount mismatch (expected ${expected} minor units, got ${String(payment.amount)})`
+    );
   }
-  if (String(payment.currency).toUpperCase() !== PLAN_CURRENCY) {
-    throw new Error("Currency mismatch");
+  const cur = String(payment.currency ?? "").toUpperCase();
+  if (cur !== PLAN_CURRENCY) {
+    throw new Error(`Currency mismatch (expected ${PLAN_CURRENCY}, got ${String(payment.currency)})`);
   }
 }

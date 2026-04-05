@@ -110,7 +110,7 @@ export function AuthRequiredDialog({
       modal={true}
     >
       <DialogContent
-        className="border-border bg-background sm:max-w-md [&>button]:hidden"
+        className="border-border bg-background sm:max-w-md"
         onInteractOutside={(e) => {
           if (!allowDismiss) e.preventDefault();
         }}

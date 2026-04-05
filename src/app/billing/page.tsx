@@ -16,45 +16,70 @@ import { openRazorpayCheckout } from "@/components/razorpay-open-checkout";
 interface PaymentPlan {
   id: "pro" | "agency";
   name: string;
-  price: number;
-  listPrice?: number;
+  /** USD, whole dollars (display). */
+  priceUsd: number;
+  /** Primary anchor (e.g. $79 list for 1 credit; 5×$79 for bundle). */
+  listPriceUsd?: number;
+  /** Second struck-through anchor (agency: 5× checkout single). */
+  secondaryListPriceUsd?: number;
   credits: number;
   cornerBadge: string;
   discountLabel: string;
+  discountLabelSecondary?: string;
   creditsLabel: string;
   priceSub?: string;
 }
+
+function formatUsdWhole(n: number) {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+}
+
+const LIST_SINGLE_USD = 79;
+const CHECKOUT_SINGLE_USD = 19;
+const BUNDLE_CREDITS = 5;
+const BUNDLE_USD = 59;
+const bundleListPrimary = LIST_SINGLE_USD * BUNDLE_CREDITS;
+const bundleListSecondary = CHECKOUT_SINGLE_USD * BUNDLE_CREDITS;
 
 const paymentPlans: PaymentPlan[] = [
   {
     id: "pro",
     name: "Pro Pack",
-    price: 1599,
-    listPrice: 12499,
+    priceUsd: CHECKOUT_SINGLE_USD,
+    listPriceUsd: LIST_SINGLE_USD,
     credits: 1,
-    cornerBadge: "Launch Offer",
-    discountLabel: "87% OFF",
+    cornerBadge: "Single credit",
+    discountLabel: `Save ${formatUsdWhole(LIST_SINGLE_USD - CHECKOUT_SINGLE_USD)} vs ${formatUsdWhole(LIST_SINGLE_USD)} list (~${Math.round(((LIST_SINGLE_USD - CHECKOUT_SINGLE_USD) / LIST_SINGLE_USD) * 100)}% off).`,
     creditsLabel: "1 Advanced Roast Credit",
   },
   {
     id: "agency",
     name: "Agency Pack",
-    price: 4099,
-    credits: 5,
-    cornerBadge: "Save 50%",
-    discountLabel: "Save 50% — Perfect for agencies or teams",
+    priceUsd: BUNDLE_USD,
+    listPriceUsd: bundleListPrimary,
+    secondaryListPriceUsd: bundleListSecondary,
+    credits: BUNDLE_CREDITS,
+    cornerBadge: "Best value",
+    discountLabel: `Save ${formatUsdWhole(bundleListPrimary - BUNDLE_USD)} vs five at ${formatUsdWhole(LIST_SINGLE_USD)} list each (~${Math.round(((bundleListPrimary - BUNDLE_USD) / bundleListPrimary) * 100)}% off list).`,
+    discountLabelSecondary: `Save another ${formatUsdWhole(bundleListSecondary - BUNDLE_USD)} vs five × ${formatUsdWhole(CHECKOUT_SINGLE_USD)} single-credit checkouts (~${Math.round(((bundleListSecondary - BUNDLE_USD) / bundleListSecondary) * 100)}% off that stack).`,
     creditsLabel: "5 Advanced Roast Credits",
-    priceSub: "for 5 Roasts",
+    priceSub: `≈ ${formatUsdWhole(BUNDLE_USD / BUNDLE_CREDITS)} per credit`,
   },
 ];
 
 function BillingPageContent() {
-  const { user, updateCreditsAndPlan } = useAuth();
+  const { user, updateCreditsAndPlan, refreshProfile } = useAuth();
   const isAuthenticated = useRequireAuth();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
   const paidToastRef = useRef(false);
+  const [razorpayTestMode, setRazorpayTestMode] = useState<boolean | null>(null);
 
   useEffect(() => {
     const plan = searchParams.get("plan");
@@ -71,6 +96,22 @@ function BillingPageContent() {
     toast.success("Payment complete", { description: "Your credits are updated." });
   }, [searchParams]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/razorpay/config");
+        const j = (await r.json()) as { testMode?: boolean };
+        if (!cancelled) setRazorpayTestMode(Boolean(j.testMode));
+      } catch {
+        if (!cancelled) setRazorpayTestMode(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const runCheckout = useCallback(
     async (planId: "pro" | "agency") => {
       if (!user) {
@@ -85,7 +126,9 @@ function BillingPageContent() {
           user.email,
           user.displayName
         );
-        updateCreditsAndPlan(result.credits, result.plan);
+        const credits = Number(result.credits);
+        updateCreditsAndPlan(Number.isFinite(credits) ? credits : user.credits, result.plan);
+        await refreshProfile();
       } catch (error) {
         if (error instanceof Error && error.message === "CLOSED") {
           toast.message("Checkout closed", {
@@ -101,7 +144,7 @@ function BillingPageContent() {
         setLoading(null);
       }
     },
-    [user, updateCreditsAndPlan]
+    [user, updateCreditsAndPlan, refreshProfile]
   );
 
   useEffect(() => {
@@ -140,9 +183,24 @@ function BillingPageContent() {
                 Billing & Credits
               </h1>
               <p className="text-muted-foreground">
-                Purchase credits via Razorpay (INR) to unlock advanced roast features
+                Purchase credits via Razorpay. Prices below are shown in USD for reference; the
+                payment window shows the amount in the currency your checkout is configured for
+                (often INR for India merchants).
               </p>
             </div>
+
+            {razorpayTestMode === true && (
+              <div
+                className="mb-6 rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
+                role="status"
+              >
+                <span className="font-medium">Razorpay sandbox (test keys)</span>
+                {" — "}
+                Checkout uses test mode until you deploy live{" "}
+                <code className="rounded bg-muted px-1 text-xs">rzp_live_</code> keys. Use Razorpay test
+                cards for payments.
+              </div>
+            )}
 
             {user && (
               <Card className="mb-8">
@@ -188,27 +246,29 @@ function BillingPageContent() {
                     </div>
                     <div>
                       <div className="mb-1 flex flex-wrap items-baseline gap-2">
-                        {plan.listPrice != null ? (
+                        {plan.listPriceUsd != null ? (
                           <span className="font-mono text-2xl tabular-nums text-muted-foreground line-through">
-                            ₹{plan.listPrice.toLocaleString("en-IN")}
+                            {formatUsdWhole(plan.listPriceUsd)}
+                          </span>
+                        ) : null}
+                        {plan.secondaryListPriceUsd != null ? (
+                          <span className="font-mono text-xl tabular-nums text-muted-foreground/80 line-through">
+                            {formatUsdWhole(plan.secondaryListPriceUsd)}
                           </span>
                         ) : null}
                         <span className="font-mono text-3xl font-semibold tabular-nums text-foreground">
-                          ₹{plan.price.toLocaleString("en-IN")}
+                          {formatUsdWhole(plan.priceUsd)}
                         </span>
                         {plan.priceSub ? (
                           <span className="text-sm text-muted-foreground">{plan.priceSub}</span>
                         ) : null}
                       </div>
-                      <p
-                        className={
-                          plan.id === "pro"
-                            ? "text-sm font-semibold text-primary"
-                            : "text-sm text-muted-foreground"
-                        }
-                      >
-                        {plan.discountLabel}
-                      </p>
+                      {plan.discountLabel ? (
+                        <p className="text-sm font-semibold text-primary">{plan.discountLabel}</p>
+                      ) : null}
+                      {plan.discountLabelSecondary ? (
+                        <p className="text-sm font-semibold text-primary">{plan.discountLabelSecondary}</p>
+                      ) : null}
                       <p className="mt-1 text-sm text-muted-foreground">{plan.creditsLabel}</p>
                     </div>
                     <Button

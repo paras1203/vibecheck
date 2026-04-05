@@ -209,7 +209,7 @@ PDF route implementation (if product requires).
 - Landing/billing checkout query: `checkout=razorpay` (was `paypal`).
 
 ### 3. Workflows (delta)
-- Purchase: server creates Razorpay order (INR, plan amounts in paise) → Checkout.js modal → verify signature + order paid + amount/plan notes → Firestore credits/plan + `payments` doc (`provider: razorpay`).
+- Purchase: server creates Razorpay order (USD, amounts in cents via `PLAN_AMOUNT_PAISE`) → Checkout.js modal → verify signature + payment fetch (amount/currency) → Firestore credits/plan + `payments` doc (`provider: razorpay`).
 
 ### 7. Components (delta)
 - `razorpay-open-checkout.ts` (client); `razorpay-server.ts`; `billing-plans.ts` uses `PLAN_AMOUNT_PAISE` / `PLAN_CURRENCY`.
@@ -231,9 +231,130 @@ PDF route implementation (if product requires).
 - `POST /api/razorpay/verify` — verifies via `payments.fetch`; idempotent on `paymentId`.
 
 ### 4. Free vs Pro (delta)
-- Default signup credits **5** via `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS`; pack credits via `PLAN_PRO_AUDIT_CREDITS` / `PLAN_AGENCY_AUDIT_CREDITS`. Full report still plan-gated (Pro/Agency) unless admin/bypass.
+- Default signup credits **20** via `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` (one roast when charge = loader step count); authenticated `POST /api/roast` sends `idToken` and debits `ROAST_CREDITS_PER_GENERATION` (default = `ROAST_LOADER_STEP_COUNT`, override e.g. `1`). Pack credits via `PLAN_PRO_AUDIT_CREDITS` / `PLAN_AGENCY_AUDIT_CREDITS`. Full report still plan-gated (Pro/Agency) unless admin/bypass.
 
 ### 7. Components (delta)
 - `AttentionHeatmapPanel` — jet-style overlay + legend (hot/warm/cool).
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - PageSpeed, Gemini performance, traffic estimate, report layout, scroll narrative, heatmap
+
+### 1. Directory / libs (delta)
+- `src/lib/pagespeed.ts` — PERFORMANCE category, TBT, optional `PAGESPEED_STRATEGY`.
+- `src/lib/pagespeed-gemini-summary.ts` — short summary + two quick fixes from Gemini.
+- `src/lib/traffic-estimate.ts` — bounded monthly sessions (Gemini + industry fallback).
+- `src/lib/scroll-effectiveness-from-audit.ts` — `scrollEffectiveness` from audit text + fold metrics.
+- `src/types/roast-extras.ts` — shared extras types.
+- `src/lib/radar-axis-scores.ts` — axis labels + score helper for report grid.
+
+### 2. API (delta)
+- `POST /api/roast` — attaches `trafficEstimate`, `revenueLeakEstimate` (traffic assumption line), `performanceGemini`, `scrollEffectiveness` when data available.
+
+### 7. Components / pages (delta)
+- `/roast/[id]` — site score radar + six-axis grid under verdict; Insights & actions (insider + quick fixes) below radar; Revenue Impact Calculator removed from UI; Performance row two cards; `ScrollOfDeathCard` uses server `scrollEffectiveness`; `RoastPageSpeedBlock` shows TBT + Gemini copy.
+- `AttentionHeatmapPanel` — wrapper aspect from image load; overlay aligned to image box; smaller radial zones.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Report verdict + revenue UI, auth close controls
+
+### 7. Components / pages (delta)
+- `/roast/[id]` — site score radar (six axes + chart) moved inside the verdict/score card at the bottom; overall score donut ~30% smaller (`RadialChart` 112px); revenue leak card wires `onTrafficChange` / `onPriceChange` and rebuilds `buildRevenueLeakEstimate` with dynamic traffic assumption text (no industry field in calculator UI).
+- `RevenueLeakEstimateCard` — clearer model-inputs copy and spacing.
+- `AuthRequiredDialog` — default dialog close (X) visible again.
+- `/login` — top-right close (X) linking home on the auth card.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Site Score card, executive summary merge, scroll + heatmap UX
+
+### 7. Components / pages (delta)
+- `/roast/[id]` — one `Card` for site score: header + 60/40 row (axis grid + `RoastRadar`); executive summary combines analysis / verdict / next steps without a separate hook/stopper block.
+- `ScrollOfDeathCard` — zone title rendered as `Title | Subtitle` on one line.
+- `ScrollIssueFixLine` (`scroll-of-death-zones.tsx`) — `text-sm`, relaxed leading, word wrap for long issue/fix text.
+- `AttentionHeatmapPanel` — `TOP_SECTION_FRACTION` 0.25; copy states illustrative top-quarter “gaze-style” overlay (not measured eye-tracking).
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Site Score radar column + scroll zone overflow
+
+### 7. Components / pages (delta)
+- `/roast/[id]` — Site Score row: axis grid `flex-1`, radar column fixed `268px` on `lg`; `ChartPanel` embedded content uses tighter padding.
+- `RoastRadar` — chart margins 10px, `outerRadius` 78% in the narrower frame.
+- `ScrollOfDeathCard` — zone stack `overflow-y-visible`, bands `flex-none`; issue list `space-y-3` and `min-w-0` on `ul`/`li`.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Attention heatmap full-frame overlay
+
+### 7. Components / pages (delta)
+- `AttentionHeatmapPanel` — full-screenshot `GazeHeatOverlay` (`absolute inset-0`): stacked `screen` + `normal` radial blobs so hotspots stay visible on dark heroes; copy updated (illustrative, not eye-tracking).
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Razorpay USD $19 / $59 + roast insights section order
+
+### 2. Billing (delta)
+- `PLAN_CURRENCY` USD; `PLAN_AMOUNT_PAISE` = 1900 / 5900 (cents). Landing + `/billing` show USD with bundle anchor $95 strikethrough on 5-pack.
+
+### 7. `/roast/[id]` (delta)
+- After “Insights & actions”: **AI Insights** → **Executive insight layers** (revenue leak + three cards) → **SEO health** (when shown).
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Razorpay INR default + verify error message
+
+### 2. Billing (delta)
+- `billing-plans.ts`: **`PLAN_CURRENCY`** resolves from `RAZORPAY_CURRENCY` (default **INR**); USD uses 1900/5900 cents; INR uses `PLAN_PRO_AMOUNT_PAISE` / `PLAN_AGENCY_AMOUNT_PAISE` (defaults 159900 / 409900). `.env.example` documents vars.
+- `razorpay-open-checkout.ts`: failed verify responses fall back to `HTTP <status>` when JSON has no `error`/`details`.
+- `/billing` subtitle: USD prices are reference; checkout often shows INR for India merchants.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-02 - Authenticated roast debit + SEO paywalled issues
+
+### 2. API / auth (delta)
+- `POST /api/roast` accepts optional `idToken`; verifies Firebase Admin token, debits credits in a transaction before capture (refund on pipeline failure). Response may include `creditsRemaining` (stripped before localStorage).
+
+### 7. Components (delta)
+- `RoastSeoHealthBlock` — `META_DESCRIPTION_LENGTH` & `IMAGE_ALT_COVERAGE_LOW` rows show dashed skeletons when `hasFullReportAccess` is false.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-05 - Credits default, Chromium bundle, Razorpay config API
+
+### 1. Directory Structure (delta)
+- `src/lib/chromium-executable.ts` — server-only Chromium path for Puppeteer on Vercel.
+- `src/app/api/razorpay/config/route.ts` — `GET` returns Razorpay test vs live hint (no secrets).
+
+### 2. Site Map (delta)
+- New API: `/api/razorpay/config` (used by `/billing` for sandbox banner).
+
+### 3. Workflows (delta)
+- Default roast debit: **1** credit per authenticated `POST /api/roast` (env override unchanged). Firestore refund on roast pipeline failure unchanged.
+
+### 7. Pages (delta)
+- `/billing` — optional “Razorpay sandbox” callout when server keys are `rzp_test_*`; post-payment `refreshProfile`.
+- `/login` — single redirect after `!isSyncing`.
+- Landing `/`, `/home` — `idToken` from `firebaseUser`.
 
 **Confirmed:** This structure log was appended.

@@ -186,3 +186,99 @@ Unchanged routes; landing roast modal widens on teaser step (`max-w-3xl`).
 - Attention heatmap image: `object-contain`, max width ~920px, capped height — first-viewport overlays, not full-page stretch.
 
 **Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Report page layout (responsive)
+
+### 1.4 What Is Duplicated / Divergent (delta)
+- None: `/roast/[id]` remains one route; radar grid + chart and relocated Insights stack vertically on narrow viewports like other sections.
+
+### 2.2 Roast report (delta)
+- Verdict block → full-width site score grid + `RoastRadar` → Insights & actions (no calculator card); scroll narrative uses audit-backed `scrollEffectiveness` when present; heatmap overlay matches displayed image aspect.
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Report polish (same route)
+
+### 2.2 Roast report (delta)
+- Site score: single card with six-axis grid (~60%) + radar (~40%) on large screens; executive narrative is one block (no separate stopper card).
+- Scroll-of-death zones: combined title line; issue/fix boxes sized for readability.
+- Heatmap: overlay height = top 25% of the screenshot (illustrative).
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Site Score column widths (desktop)
+
+### 2.2 Roast report (delta)
+- Large viewports: axis grid grows with `flex-1`; radar sits in a fixed-width column (~268px) with tighter chart padding so the polygon stays readable without consuming 40% of the row.
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Signup credits default + scroll snapshot copy
+
+### 1.3 What Is Shared (delta)
+- `newUserCreditsDefault()` falls back to **3** when env is unset; override still via `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS`.
+
+### 2.2 Roast report (delta)
+- Scroll of Death “How to read” omits calculation copy; % and plain-language meaning sit on one row (stacked on small viewports); `scrollEffectiveness` / fallback situation text avoids pixels and fold math.
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Billing USD + roast insights stack order
+
+### 2.1 Billing (delta)
+- Razorpay plan orders bill in **USD** (same flow; dashboard must allow USD for the keys in use).
+
+### 2.2 Roast report (delta)
+- “Insights & actions” stack: AI Insights → Executive insight layers → SEO block (unchanged route; responsive order is vertical on mobile).
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Razorpay default INR (fix unknown checkout failures)
+
+### 2.1 Billing (delta)
+- Razorpay **Orders API** defaults to **INR** + paise amounts (`159900` / `409900` unless overridden). Set **`RAZORPAY_CURRENCY=USD`** when the merchant account supports international/USD. Same client checkout flow; `/billing` copy clarifies USD is display-only vs checkout currency.
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-02 - Roast generation credits
+
+### 1.3 What Is Shared (delta)
+- Landing `/` and workspace `/home` send Firebase `idToken` with `POST /api/roast` when signed in; server debits credits (default equals loader step count unless `ROAST_CREDITS_PER_GENERATION` is set).
+
+### 2.1 Roast start (delta)
+- Anonymous runs (no token) still skip Firestore debit; signed-in runs require sufficient balance (402 otherwise).
+
+**Confirmed:** This architecture log was appended.
+
+---
+
+## 2026-04-05 - Credits (1/roast), Vercel Chromium, auth + Razorpay hints
+
+### 1.3 What Is Shared (delta)
+- `POST /api/roast` debits **1** credit per successful auth run by default (`ROAST_CREDITS_PER_GENERATION` still overrides). Landing/home use `firebaseUser.getIdToken()` from `AuthContext` (not raw `auth.currentUser`) so the token matches hydrated state.
+- Serverless capture uses `@sparticuz/chromium` with `outputFileTracingIncludes` keys for both `/api/...` and `/api/.../route`; shared `resolveChromiumExecutablePath()` prefers `node_modules/@sparticuz/chromium/bin` under `cwd`.
+
+### 2.1 Login (delta)
+- Post-sign-in navigation uses `router.replace(next)` only after Firestore sync finishes (`!isSyncing`); removed duplicate immediate `router.push` after Google/email handlers.
+
+### 2.2 Billing (delta)
+- `GET /api/razorpay/config` exposes `{ configured, testMode }` from key id prefix; `/billing` shows a sandbox banner when `testMode`. After checkout, client calls `refreshProfile()` plus `updateCreditsAndPlan`.
+
+### 2.3 Protected app routes (delta)
+- `useRequireAuth` sends users to `/login?next=<pathname>` via `router.replace`.
+
+**Confirmed:** This architecture log was appended.

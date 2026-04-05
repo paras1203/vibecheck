@@ -27,7 +27,7 @@ export function HeroSection({ url, setUrl, loading, error, onRoast }: LandingRoa
           Your Landing Page is <Highlight>Leaking Money.</Highlight>
         </h1>
         <p className="mx-auto max-w-2xl text-lg text-muted-foreground md:text-xl">
-          Paste your URL. Get a brutal, AI-powered audit. Fix your conversion rate in minutes.
+          AI-powered audit. Fix your conversion rate in minutes.
         </p>
       </div>
 

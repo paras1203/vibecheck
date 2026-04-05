@@ -1,5 +1,11 @@
 import type { AuditReportPayload } from "@/lib/report-html";
 
+/** API-only keys; must not be persisted with the roast payload. */
+export function stripRoastApiBillingFields(data: Record<string, unknown>): Record<string, unknown> {
+  const { creditsRemaining: _c, ...rest } = data;
+  return rest;
+}
+
 const heroSessionSuffix = "_hero_b64";
 
 function sessionHeroKey(roastId: string): string {

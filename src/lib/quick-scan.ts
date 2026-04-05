@@ -1,11 +1,18 @@
 import chromium from "@sparticuz/chromium";
+import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD } from "./insight-layers";
 import { getPuppeteerWithStealth } from "./screenshot";
 
 /** Illustrative AOV when no confident on-page price is detected (revenue leak model). */
 export function defaultRevenueModelAovUsd(): number {
   const raw = process.env.DEFAULT_REVENUE_MODEL_AOV_USD;
-  const n = raw !== undefined && raw !== "" ? parseFloat(raw) : 50;
-  return Number.isFinite(n) && n > 0 ? Math.min(250_000, n) : 50;
+  const n =
+    raw !== undefined && raw !== ""
+      ? parseFloat(raw)
+      : DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
+  return Number.isFinite(n) && n > 0
+    ? Math.min(250_000, n)
+    : DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
 }
 
 function parseMoneyAmount(raw: string): number | null {
@@ -207,7 +214,7 @@ export async function quickScan(url: string): Promise<{
 
     if (process.env.NODE_ENV !== "development" || process.env.VERCEL) {
       launchOptions.args = [...chromium.args];
-      launchOptions.executablePath = await chromium.executablePath();
+      launchOptions.executablePath = await resolveChromiumExecutablePath();
     }
 
     const browser = await puppeteer.launch(launchOptions);

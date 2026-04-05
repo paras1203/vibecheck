@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { FieldValue } from "firebase-admin/firestore";
 import { PLAN_PURCHASE_CREDITS, type PaidPlanId } from "@/lib/billing-plans";
 import {
   assertRazorpayPaymentMatchesPlan,
   verifyRazorpayPaymentSignature,
 } from "@/lib/razorpay-server";
-import { getAdminDb } from "@/lib/firebase-admin";
+import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { mergePlanAfterPurchase } from "@/lib/plan-merge";
+import { newUserCreditsDefault } from "@/lib/credits-config";
 
 const bodySchema = z.object({
   razorpay_order_id: z.string(),
@@ -38,11 +40,26 @@ export async function POST(request: NextRequest) {
       planId as PaidPlanId
     );
 
+    try {
+      await getAdminAuth().getUser(userId);
+    } catch {
+      return NextResponse.json({ error: "Invalid or unknown user" }, { status: 401 });
+    }
+
     const credits = PLAN_PURCHASE_CREDITS[planId as PaidPlanId];
     const userRef = getAdminDb().collection("users").doc(userId);
-    const userDoc = await userRef.get();
+    let userDoc = await userRef.get();
     if (!userDoc.exists) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      await userRef.set(
+        {
+          credits: newUserCreditsDefault(),
+          plan: "free",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+      userDoc = await userRef.get();
     }
 
     const paySnap = await getAdminDb()
@@ -92,6 +109,12 @@ export async function POST(request: NextRequest) {
       plan: nextPlan,
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: error.flatten() },
+        { status: 400 }
+      );
+    }
     console.error("Razorpay verify:", error);
     return NextResponse.json(
       {

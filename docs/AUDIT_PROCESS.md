@@ -11,7 +11,7 @@ This document describes how a URL becomes a roast report in the current stack: *
 | Landing `/` or `/home` | User enters URL → `POST /api/roast` → JSON stored in `localStorage` under `roast_{id}` → optional navigation to `/roast/[id]`. |
 | Authenticated history | Same payload shape; server may persist roasts by id (see `src/app/api/roast/[id]`). |
 
-**Auth and plans:** Full report UI (all audit rows, exports) is gated by **Pro/Agency plan**, admin, or dev bypass (`NEXT_PUBLIC_SKIP_PAYMENT_UNLOCK`). New users receive **default credits** from `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` (default **5** in code); purchasing via Razorpay adds **plan credits** from `PLAN_PRO_AUDIT_CREDITS` / `PLAN_AGENCY_AUDIT_CREDITS`.
+**Auth and plans:** Full report UI (all audit rows, exports) is gated by **Pro/Agency plan**, admin, or dev bypass (`NEXT_PUBLIC_SKIP_PAYMENT_UNLOCK`). New users receive **default credits** from `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` (default **20** in code—aligned with one debit when each loader step costs a credit); purchasing via Razorpay adds **plan credits** from `PLAN_PRO_AUDIT_CREDITS` / `PLAN_AGENCY_AUDIT_CREDITS`. Logged-in `POST /api/roast` sends `idToken` and debits `ROAST_CREDITS_PER_GENERATION` (default = loader step count unless overridden).
 
 ---
 
@@ -118,7 +118,7 @@ This is the **total LLM token count** for the audit (sum of all stages). Legacy 
 
 ## 12. Billing (Razorpay)
 
-1. **`POST /api/razorpay/create-order`** creates an order with **amount in paise** from `PLAN_AMOUNT_PAISE`.
+1. **`POST /api/razorpay/create-order`** creates an order with **amount in smallest currency units** (USD cents) from `PLAN_AMOUNT_PAISE` and **`PLAN_CURRENCY`** (USD).
 2. Checkout runs in the browser; on success the handler **`POST /api/razorpay/verify`** with `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`, `userId`, `planId`.
 3. Server verifies **HMAC signature**, then **`payments.fetch(payment_id)`** to confirm **captured/authorized**, **order id**, **amount**, and **currency** (avoids relying on order `notes` or delayed `order.status`).
 4. **Idempotency**: if `payments` collection already has this `paymentId`, the handler returns success without double-crediting.
@@ -133,7 +133,8 @@ This is the **total LLM token count** for the audit (sum of all stages). Legacy 
 | `GOOGLE_GENAI_API_KEY` | Gemini |
 | `GEMINI_WORKER_MODEL_*`, `GEMINI_ROAST_MODEL_*` | Model selection |
 | `DEFAULT_REVENUE_MODEL_AOV_USD` | Fallback AOV when no priced offer detected |
-| `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` | Signup credits (default 5) |
+| `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` | Signup credits (default 20) |
+| `ROAST_CREDITS_PER_GENERATION` | Credits debited per authenticated roast (default = loader step count; use `1` for single credit) |
 | `PLAN_PRO_AUDIT_CREDITS`, `PLAN_AGENCY_AUDIT_CREDITS` | Credits added on purchase |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Billing |
 | `NEXT_PUBLIC_PREVIEW_ROAST_USES_CREDITS` | Whether landing preview consumes credits |

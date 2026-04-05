@@ -1,8 +1,8 @@
 /** Credits assigned to brand-new Firestore user profiles (not existing docs). */
 export function newUserCreditsDefault(): number {
   const raw = process.env.NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS;
-  const base = raw !== undefined && raw !== "" ? parseInt(raw, 10) : 5;
-  const safeBase = Number.isFinite(base) && base >= 0 ? base : 5;
+  const base = raw !== undefined && raw !== "" ? parseInt(raw, 10) : 20;
+  const safeBase = Number.isFinite(base) && base >= 0 ? base : 20;
   if (process.env.NEXT_PUBLIC_PROMO_ACTIVE !== "true") return safeBase;
   const bonusRaw = process.env.NEXT_PUBLIC_PROMO_BONUS_ROAST_CREDITS;
   const bonus =

@@ -19,8 +19,14 @@ export const REVENUE_LEAK_DISCLAIMER =
 export const REVENUE_LEAK_METHODOLOGY =
   "Annual revenue at risk is modeled as monthly sessions × assumed incremental conversion rate × average order value × 12 months. Low, base, and high use different uplift assumptions; base uses the standard 2% incremental conversion benchmark.";
 
+/** When we have no traffic model, revenue UI uses this illustrative monthly session count. */
+export const DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS = 5000;
+
+/** When on-page price isn’t detected, revenue UI uses this illustrative deal value (USD). */
+export const DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD = 29;
+
 export const REVENUE_LEAK_ASSUMPTIONS_FALLBACK = [
-  "Monthly sessions default to ~1,000 illustrative visits when we don’t have your analytics; adjust in the calculator. Average order value uses on-page pricing only when a pricing-intent block is detected near currency amounts; otherwise DEFAULT_REVENUE_MODEL_AOV_USD (default 50).",
+  "Monthly sessions default to 5,000 illustrative visits when we don’t have a better estimate; adjust in the model. Average order value uses on-page pricing when detected; otherwise DEFAULT_REVENUE_MODEL_AOV_USD (default 29).",
   "Uplift is interpreted as incremental conversion rate (not additive revenue percentage).",
   "Scenarios bracket uncertainty; base matches the product’s historical 2% benchmark.",
 ];
@@ -94,17 +100,25 @@ function normalizeLayer(
 }
 
 export function buildRevenueLeakEstimate(
-  defaultTraffic = 1000,
-  defaultPrice = 50,
-  ctx?: { industryLabel?: string; priceFromScrape?: boolean }
+  defaultTraffic = DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
+  defaultPrice = DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
+  ctx?: {
+    industryLabel?: string;
+    priceFromScrape?: boolean;
+    /** Overrides default "industry benchmark" traffic assumption line when set (e.g. model estimate). */
+    trafficAssumptionLine?: string;
+  }
 ): RevenueLeakEstimate {
   const annual = (rate: number) => defaultTraffic * rate * defaultPrice * 12;
   const ind = ctx?.industryLabel?.trim() || "your segment";
   const priceLine = ctx?.priceFromScrape
     ? `Order value uses a price found in visible page text (median of detected amounts → $${defaultPrice}).`
     : `Order value defaults to $${defaultPrice} when no clear on-page price is detected.`;
+  const trafficLine =
+    ctx?.trafficAssumptionLine?.trim() ||
+    `Monthly sessions use an industry-style benchmark for ${ind} (${defaultTraffic.toLocaleString()} visits/mo, illustrative—not pulled from your analytics).`;
   const assumptions = [
-    `Monthly sessions use an industry-style benchmark for ${ind} (${defaultTraffic.toLocaleString()} visits/mo, illustrative—not pulled from your analytics).`,
+    trafficLine,
     priceLine,
     "Uplift is incremental conversion rate; scenarios bracket uncertainty; base uses the 2% benchmark.",
   ];

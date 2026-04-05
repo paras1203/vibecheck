@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import chromium from "@sparticuz/chromium";
+import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
 import { getPuppeteerWithStealth } from "@/lib/screenshot";
 import { generateFreeRoastCertificateHTML, generatePaidAgencyReportHTML } from "@/lib/pdf-templates";
 
@@ -44,7 +45,7 @@ export async function POST(request: NextRequest) {
         "--disable-blink-features=AutomationControlled",
         "--disable-features=IsolateOrigins,site-per-process",
       ];
-      launchOptions.executablePath = await chromium.executablePath();
+      launchOptions.executablePath = await resolveChromiumExecutablePath();
     }
 
     browser = await puppeteer.launch(launchOptions);

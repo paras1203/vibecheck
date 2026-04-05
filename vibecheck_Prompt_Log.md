@@ -1,3 +1,63 @@
+## 2026-04-02 - Razorpay payment failed / unknown error (checkout)
+**Category:** Core Logic / Bugfix
+**Instruction:**
+> Razorpay showed payment failed with unknown error when purchasing. Address by defaulting Orders to **INR** + paise for typical India merchant keys (USD optional via `RAZORPAY_CURRENCY=USD`), documenting env overrides, clarifying billing page copy (USD display vs checkout currency), and improving verify failure messaging on the client when the API returns empty fields.
+
+## 2026-04-02 - Pricing anchors $79 list + agency double discount copy
+**Category:** Feature Request / UX
+**Instruction:**
+> Keep discount framing from $79 for 1 credit; for agency, double the discount / strikethrough messaging (stronger stacked savings vs list and vs checkout singles).
+
+## 2026-04-02 - Roast credits per generation + SEO issue paywall
+**Category:** Core Logic / Feature Request
+**Instruction:**
+> Fix credit logic: each report generation step should consume 1 credit (align charge with loader steps). Hide SEO issues `META_DESCRIPTION_LENGTH` and `IMAGE_ALT_COVERAGE_LOW` for free users behind the same paywall treatment as extra quick-fix rows (dashed skeleton).
+
+## 2026-04-02 - USD pricing $19 / $59 + report section order
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Pricing: USD $19 for 1 credit and USD $59 for 5 credits with discount logic (bundle vs 5× single). On roast report: move Executive insight layers (revenue leak + three insight cards) above SEO health; place AI Insights directly under “Insights & actions”, with SEO below that.
+
+## 2026-04-02 - Free credits 3, Scroll of Death copy simplification
+**Category:** Feature Request / Core Logic
+**Instruction:**
+> Free users get 3 free credits (default). On Scroll of Death “How to read”: remove the “how we calculate” block; place the score meaning beside the big percentage; rewrite the situation summary in plain language (no pixel math / technical capture details).
+
+## 2026-04-02 - Heatmap shapes less oval / more organic
+**Category:** Feature Request / UX
+**Instruction:**
+> Heatmap overlay shapes read as ovals; adjust so the visualization feels closer to a real heatmap (irregular patches, not smooth ellipses).
+
+## 2026-04-02 - Attention heatmap overlay visible again (reference style)
+**Category:** Feature Request / UX
+**Instruction:**
+> Restore the gaze-style heatmap over the hero screenshot like the provided references (soft red/orange/yellow/green/blue blobs across the capture); previous overlay looked “lost” on the report—fix visibility and styling.
+
+## 2026-04-02 - Site Score radar column width + Scroll of Death list visibility
+**Category:** Feature Request / UX
+**Instruction:**
+> Tighten ChartPanel/radar spacing; narrow the radar column (fixed ~268px on lg) so the six-axis grid gets more width while the radar polygon stays similar size. Scroll-of-death issues/fixes list: adjust typography/spacing so full text is visible (not clipped).
+
+## 2026-04-02 - Roast report: Site Score card, executive summary, scroll zones, heatmap band
+**Category:** Feature Request / UX
+**Instruction:**
+> Keep radar on the right (~40%); put axis grid in the same card; remove standalone “Site Score” label above the row. Format scroll zone headers as “Title | Subtitle”. Scroll issue/fix lines: larger type, no clipped text. Attention heatmap: illustrative gaze-style overlay limited to top 25% of capture with clear copy (not real eye-tracking). Remove first executive/stopper block; merge remaining roast/verdict/closer summaries under one titled executive summary.
+
+## 2026-04-02 - Scroll of Death copy: simplify flagged section
+**Category:** Feature Request / Core Logic
+**Instruction:**
+> The Scroll of Death / “what we flagged” block has too much text—simplify the flagged section and findings; state issue and solution in precise words; implement in audit logic (not only UI trim).
+
+## 2026-04-02 - PageSpeed + Gemini + traffic + report layout + Scroll of Death + heatmap
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Implement plan (no plan file edits): PageSpeed PERFORMANCE category + TBT; Gemini speed summary + two quick fixes; URL-aware monthly session estimate (Gemini JSON + industry fallback) for revenue leak assumptions; report page — site score radar + six-axis grid directly under verdict (sample style), hide Revenue Impact Calculator, move Insights & actions (Industry insider + Quick fixes) below radar, trim Performance row to two cards; Scroll of Death from audit findings + scroll metrics; fix attention heatmap overlay alignment (aspect box, smaller radials); plumb types through HTML/PDF appendix; .env.example for PSI + traffic disclaimers.
+
+## 2026-04-02 - Vercel Chromium, Firebase domain, INP, landing auth/copy, Razorpay verify
+**Category:** Feature Request / Core Logic
+**Instruction:**
+> (1) Vercel: after Roast, error that @sparticuz/chromium bin / brotli path missing. (2) Firebase auth/auth-domain-config-required for Google login (Firestore note). (3) INP on element with text-destructive — event handlers blocking UI ~274ms. (4) Remove Google button on landing navbar; add Login / Register text links and wire flow. (5) Replace landing hero text with “AI-powered audit. Fix your conversion rate in minutes.” (6) Payment verification failed after payment flow — fix.
+
 ## 2026-03-31 - Razorpay verification, credits, tokens, audit accuracy, heatmap, audit doc
 **Category:** Core Logic / Feature Request / Architecture
 **Instruction:**
@@ -379,4 +439,11 @@
 > Fix login/logout so users are not logged out unless they click logout; add Google and email+password flows; fix history with historic reports, save audit HTML free/paid with one-click download and PDF, proper headers; default settings page with free/paid profiles, T&C, privacy, manage account, subscription; PayPal in billing; dynamic popup during roasting; radar/heatmap/priority matrix visible in PDF; free vs paid report content for HTML/PDF with element-by-element audit above deep dive; user dashboard and home page.
 
 **Constraint:** Confirmed this log entry was appended when completing the implementation batch.
+
+## 2026-04-05 - Credits, Vercel Chromium, auth, Razorpay sandbox
+**Category:** Core Logic / Feature Request / Bugfix
+**Instruction:**
+> Fix “Insufficient credits: This roast requires 20 credits” so each roast consumes 1 credit; fix credits workflow (addition, consumption, balance). Fix Vercel error: Chromium brotli bin missing on roast. Fix auth flow thoroughly. Confirm Razorpay sandbox for adding credits until live keys are used.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
 

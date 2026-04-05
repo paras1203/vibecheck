@@ -1,10 +1,12 @@
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
+import type { PerformanceGeminiSummary } from "@/types/roast-extras";
 
 export type SeoAppendixInput = {
   seo?: SeoAnalysisResult | null;
   page_type?: string;
   performance?: PageSpeedSummary | null;
+  performanceGemini?: PerformanceGeminiSummary | null;
 };
 
 const ISSUE_COPY: Record<string, string> = {
@@ -17,8 +19,30 @@ const ISSUE_COPY: Record<string, string> = {
   IMAGE_ALT_COVERAGE_LOW: "Some images lack descriptive alt text",
 };
 
+const ISSUE_SOLUTION: Record<string, string> = {
+  TITLE_LENGTH:
+    "Write one clear title between 30–60 characters that names the page and primary keyword.",
+  MISSING_TITLE:
+    "Add a unique <title> in the document head that matches what users see on the page.",
+  META_DESCRIPTION_LENGTH:
+    "Set a meta description around 70–160 characters with benefit, proof, and a soft CTA.",
+  MISSING_META_DESCRIPTION:
+    "Add a meta description tag so search snippets can show a compelling summary.",
+  H1_COUNT_INVALID:
+    "Keep a single visible H1 for the main topic; change extras to H2/H3 for structure.",
+  IMAGE_ALT_COVERAGE_LOW:
+    "Add short descriptive alt text to informative images; use alt=\"\" for purely decorative ones.",
+};
+
 export function formatSeoIssueLabel(type: string): string {
   return ISSUE_COPY[type] || type;
+}
+
+export function formatSeoIssueSolution(type: string): string {
+  return (
+    ISSUE_SOLUTION[type] ||
+    "Review this signal in your CMS or markup and align with current SEO best practices."
+  );
 }
 
 function pageTypeLabel(pt: string): string {
@@ -49,8 +73,10 @@ export function buildSeoPerformanceAppendixHtml(
     perf &&
       (typeof perf.performanceScore === "number" ||
         (perf.lcp != null && perf.lcp !== "") ||
-        (perf.cls != null && perf.cls !== ""))
+        (perf.cls != null && perf.cls !== "") ||
+        (perf.tbt != null && perf.tbt !== ""))
   );
+  const gem = data.performanceGemini;
 
   if (!hasPageType && !hasSeo && !hasPerf) {
     return "";
@@ -78,11 +104,12 @@ export function buildSeoPerformanceAppendixHtml(
         : "OK";
     const issuesList =
       seo.issues?.length > 0
-        ? `<ul style="margin:8px 0 0;padding-left:1.25rem;">${seo.issues
-            .map(
-              (i) =>
-                `<li class="report-nojustify" style="margin:4px 0;">${esc(ISSUE_COPY[i.type] || i.type)}</li>`
-            )
+        ? `<ul style="margin:8px 0 0;padding-left:0;list-style:none;">${seo.issues
+            .map((i) => {
+              const label = ISSUE_COPY[i.type] || i.type;
+              const fix = formatSeoIssueSolution(i.type);
+              return `<li class="report-nojustify" style="margin:8px 0;padding:8px 10px;border:1px solid var(--rs-border,#e5e7eb);border-radius:8px;"><strong>${esc(label)}</strong><br/><span class="muted">${esc(fix)}</span></li>`;
+            })
             .join("")}</ul>`
         : "";
 
@@ -113,8 +140,18 @@ export function buildSeoPerformanceAppendixHtml(
       perf.cls != null && perf.cls !== ""
         ? `<p class="muted report-nojustify">CLS: ${esc(perf.cls)}</p>`
         : "";
+    const tbt =
+      perf.tbt != null && perf.tbt !== ""
+        ? `<p class="muted report-nojustify">TBT: ${esc(perf.tbt)}</p>`
+        : "";
+    const gemBlock =
+      gem?.summary && gem.quickFixes?.length === 2
+        ? `<p class="report-nojustify" style="margin-top:10px;">${esc(gem.summary)}</p><p class="report-label" style="margin-top:12px;">Top quick fixes (speed)</p><ol style="margin:6px 0 0;padding-left:1.25rem;">${gem.quickFixes
+            .map((q) => `<li class="report-nojustify">${esc(q)}</li>`)
+            .join("")}</ol>`
+        : "";
     parts.push(
-      `<div class="section report-major"><h2>Lighthouse performance (PageSpeed)</h2>${perfScore}${lcp}${cls}</div>`
+      `<div class="section report-major"><h2>Lighthouse performance (PageSpeed)</h2>${perfScore}${lcp}${cls}${tbt}${gemBlock}</div>`
     );
   }
 

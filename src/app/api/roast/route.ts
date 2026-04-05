@@ -1,4 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getAdminAuth } from "@/lib/firebase-admin";
+import { roastGenerationCreditCost } from "@/lib/roast-credit-cost";
+import {
+  debitRoastCreditsIfSufficient,
+  refundRoastCredits,
+} from "@/lib/roast-credits-server";
 import type { GoogleGenerativeAI } from "@google/generative-ai";
 import { repairJson, cleanJsonText, safeErrorMessage } from "@/lib/json-utils";
 import {
@@ -10,11 +16,14 @@ import {
 import { FULL_DIAGNOSTIC_UPGRADE_HOOK, stripNarrativeSegmentLabels } from "@/lib/report-copy";
 import {
   buildRevenueLeakEstimate,
-  defaultMonthlySessionsForRoast,
+  DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
   fallbackInsightLayers,
   INSIGHT_LAYERS_SYSTEM_PROMPT,
   mergeInsightLayersFromAI,
 } from "@/lib/insight-layers";
+import { summarizePageSpeedWithGemini } from "@/lib/pagespeed-gemini-summary";
+import { estimateMonthlySessionsForUrl } from "@/lib/traffic-estimate";
+import { buildScrollEffectiveness } from "@/lib/scroll-effectiveness-from-audit";
 import { partitionLegalComplianceAuditLast } from "@/lib/legal-compliance-audit";
 import {
   analyzeLegalSignalsFromHtml,
@@ -1131,7 +1140,7 @@ ${userPrompt}`;
     roastSummaryJson.closer = `${roastSummaryJson.closer.trim()} ${FULL_DIAGNOSTIC_UPGRADE_HOOK}`;
   }
 
-  const revenueLeakEstimate = buildRevenueLeakEstimate(1000, 50);
+  const revenueLeakEstimate = buildRevenueLeakEstimate();
   const fbInsightLayers = fallbackInsightLayers(radarMetrics);
   let firstImpressionScore = fbInsightLayers.firstImpressionScore;
   let trustGapIndex = fbInsightLayers.trustGapIndex;
@@ -1214,15 +1223,14 @@ Return JSON only per the schema.`;
     }
   }
 
-  // Build quick wins: Use Badness Score system to always return top 3 priorities
+  // Build quick wins: Badness Score — top 4 priorities for the report Quick Fixes block
   // Filter out Legal Compliance items from Quick Fixes (they should only appear in detailed report)
   const nonLegalItems = allItems.filter((item) => (item.elementName || "").toLowerCase() !== "legal compliance");
   const itemsWithScores = nonLegalItems.map((item) => [item, calculateBadnessScore(item)] as const);
   const sortedItems = itemsWithScores.sort((a, b) => b[1] - a[1]);
 
-  // Always take top 3 items (guarantees we always have 3 quick wins)
   const quickWins: any[] = [];
-  for (const [item, score] of sortedItems.slice(0, 3)) {
+  for (const [item, score] of sortedItems.slice(0, 4)) {
     const notWorking = item.notWorking || [];
     const fix = item.fix || {};
     quickWins.push({
@@ -1425,6 +1433,9 @@ Return JSON only per the schema.`;
  * Performs BOTH Puppeteer Scraping AND Gemini Analysis in a single execution chain
  */
 export async function POST(request: NextRequest) {
+  let chargeUid: string | null = null;
+  let chargeCost = 0;
+
   try {
     const body = await request.json();
     const { url, device = "desktop" } = body;
@@ -1443,6 +1454,36 @@ export async function POST(request: NextRequest) {
         { error: "device must be 'desktop' or 'mobile'" },
         { status: 400 }
       );
+    }
+
+    const idToken =
+      typeof body.idToken === "string" && body.idToken.trim() ? body.idToken.trim() : "";
+    let creditsRemaining: number | undefined;
+
+    if (idToken) {
+      try {
+        const decoded = await getAdminAuth().verifyIdToken(idToken);
+        chargeUid = decoded.uid;
+      } catch {
+        return NextResponse.json(
+          { error: "Unauthorized", details: "Invalid or expired session token" },
+          { status: 401 }
+        );
+      }
+      chargeCost = roastGenerationCreditCost();
+      if (chargeCost > 0) {
+        const debit = await debitRoastCreditsIfSufficient(chargeUid, chargeCost);
+        if (!debit.ok) {
+          return NextResponse.json(
+            {
+              error: "Insufficient credits",
+              details: `This roast requires ${chargeCost} credits. Add credits from Billing.`,
+            },
+            { status: 402 }
+          );
+        }
+        creditsRemaining = debit.creditsAfter;
+      }
     }
 
     console.log(`[DEBUG] Starting roast generation for URL: ${url} (${device} mode)`);
@@ -1475,7 +1516,7 @@ export async function POST(request: NextRequest) {
       console.warn(`[WARNING] Quick scan failed: ${safeErrorMessage(scanError)}`);
       scanData = {
         page_height: pageHeight,
-        price_guess: 50.0,
+        price_guess: DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
         industry_guess: "SaaS",
         price_from_page: false,
         price_billing_note: "",
@@ -1547,22 +1588,68 @@ export async function POST(request: NextRequest) {
     if (scanData.price_billing_note) {
       (result as { price_billing_note?: string }).price_billing_note = scanData.price_billing_note;
     }
-    const estSessions = defaultMonthlySessionsForRoast(scanData.industry_guess);
+
+    const trafficEst = await estimateMonthlySessionsForUrl(
+      url,
+      scanData.industry_guess,
+      pageType,
+      pageText
+    );
+    (result as { trafficEstimate?: typeof trafficEst }).trafficEstimate = trafficEst;
+
+    const trafficAssumptionLine =
+      trafficEst.source === "gemini"
+        ? `Monthly sessions are an illustrative estimate (${trafficEst.monthlySessions.toLocaleString()} visits/mo) from domain context—not your analytics. ${trafficEst.note ?? ""}`.trim()
+        : `Monthly sessions (${trafficEst.monthlySessions.toLocaleString()} visits/mo) use a default illustrative benchmark when no model estimate is available. ${trafficEst.note ?? ""}`.trim();
+
     result.revenueLeakEstimate = buildRevenueLeakEstimate(
-      estSessions,
+      trafficEst.monthlySessions,
       scanData.price_guess,
       {
         industryLabel: scanData.industry_guess,
         priceFromScrape: scanData.price_from_page,
+        trafficAssumptionLine,
       }
     );
+
+    let performanceGemini: Awaited<ReturnType<typeof summarizePageSpeedWithGemini>> = null;
+    if (pageSpeed) {
+      try {
+        performanceGemini = await summarizePageSpeedWithGemini(url, pageSpeed);
+      } catch {
+        performanceGemini = null;
+      }
+    }
+    (result as { performanceGemini?: typeof performanceGemini }).performanceGemini =
+      performanceGemini;
+
+    const scrollEffectiveness = buildScrollEffectiveness(
+      result as Parameters<typeof buildScrollEffectiveness>[0],
+      url,
+      scanData.page_height,
+      800
+    );
+    (result as { scrollEffectiveness?: typeof scrollEffectiveness }).scrollEffectiveness =
+      scrollEffectiveness;
+
     if (screenshots[0]) {
       result.heroScreenshot = screenshots[0];
     }
 
     console.log("[DEBUG] Roast generation complete");
-    return NextResponse.json(result, { status: 200 });
+    return NextResponse.json(
+      {
+        ...result,
+        ...(creditsRemaining !== undefined ? { creditsRemaining } : {}),
+      },
+      { status: 200 }
+    );
   } catch (error) {
+    if (chargeUid && chargeCost > 0) {
+      await refundRoastCredits(chargeUid, chargeCost).catch(() => {
+        /* best-effort refund */
+      });
+    }
     console.error(`[ERROR] Roast API failed: ${safeErrorMessage(error)}`);
     return NextResponse.json(
       {

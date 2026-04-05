@@ -14,6 +14,10 @@ import type {
   RevenueLeakEstimate,
   TrustGapInsight,
 } from "@/types/insight-layers";
+import {
+  DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
+  DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
+} from "@/lib/insight-layers";
 import { buildInsightLayersHtml } from "@/lib/insight-layers-report";
 import {
   buildExecutiveDiagnosticInnerHtml,
@@ -24,6 +28,11 @@ import { heroScreenshotDataUrl } from "@/lib/hero-image";
 import { buildSeoPerformanceAppendixHtml } from "@/lib/report-seo-appendix";
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
+import type {
+  PerformanceGeminiSummary,
+  ScrollEffectiveness,
+  TrafficEstimate,
+} from "@/types/roast-extras";
 
 export type QuickWin = {
   title?: string;
@@ -76,6 +85,9 @@ export type AuditReportPayload = {
   seo?: SeoAnalysisResult | null;
   page_type?: string;
   performance?: PageSpeedSummary | null;
+  performanceGemini?: PerformanceGeminiSummary | null;
+  trafficEstimate?: TrafficEstimate;
+  scrollEffectiveness?: ScrollEffectiveness;
 };
 
 function escapeHtml(s: string): string {
@@ -146,7 +158,7 @@ function buildVisualAnalysisSection(data: AuditReportPayload, radar: Record<stri
   const blocks: string[] = [];
   if (hasRadar) {
     blocks.push(`<div class="chart-block">
-      <p class="chart-block__title">Site score radar</p>
+      <p class="chart-block__title">Site Score</p>
       <div class="chart-box">${buildRadarSvg(radar)}</div>
       <p class="chart-block__caption">Category scores on a common scale for quick comparison.</p>
     </div>`);
@@ -297,8 +309,8 @@ export function generateAuditReportHTML(
 ): string {
   const { reportId, isPaid } = options;
   const calc = options.calculator || {
-    traffic: 1000,
-    price: data.price_guess || 50,
+    traffic: DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
+    price: data.price_guess || DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
     industry: data.industry_guess || "SaaS",
   };
   const at = options.generatedAt || new Date();
@@ -421,7 +433,7 @@ export function generateAuditReportHTML(
   </div>
 
   <div class="section report-major">
-    <h2>Industry insider</h2>
+    <h2>AI Insights</h2>
     ${insiderBlock || `<p class="report-prose">Patterns from your page and category benchmarks.</p>`}
   </div>
 

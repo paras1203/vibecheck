@@ -21,6 +21,11 @@ import { heroScreenshotDataUrl } from "@/lib/hero-image";
 import { buildSeoPerformanceAppendixHtml } from "@/lib/report-seo-appendix";
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
+import {
+  DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
+  DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
+} from "@/lib/insight-layers";
+import type { PerformanceGeminiSummary } from "@/types/roast-extras";
 
 interface RoastData extends InsightExportData {
   overall_score?: number;
@@ -58,6 +63,7 @@ interface RoastData extends InsightExportData {
   seo?: SeoAnalysisResult | null;
   page_type?: string;
   performance?: PageSpeedSummary | null;
+  performanceGemini?: PerformanceGeminiSummary | null;
 }
 
 function pdfScoreColor(score: number): string {
@@ -85,8 +91,8 @@ export async function generateFreeRoastCertificateHTML(
 ): Promise<string> {
   const overallScore = data.overall_score || data.overview?.overallScore || 50;
   const quickWins = data.quickWins || data.quick_wins || [];
-  const traffic = 1000;
-  const price = data.price_guess || 50;
+  const traffic = DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
+  const price = data.price_guess || DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
   const lift = 0.02;
   const lost = Math.round(traffic * lift * price * 12);
   const insiderLines = buildPersonalizedInsiderLines(data as Record<string, unknown>);
@@ -172,7 +178,7 @@ export async function generateFreeRoastCertificateHTML(
     <p class="intel-micro" style="margin-top:12px;">${intelEstEsc}</p>
   </div>
 
-  <h2>Industry insider</h2>
+  <h2>AI Insights</h2>
   <div class="section" style="margin-top:12px;">${insiderHtml}</div>
 
   ${seoAppendixFree}
@@ -323,8 +329,8 @@ export async function generatePaidAgencyReportHTML(
   );
   const paidIntelEstEsc = esc(`${INTEL_ESTIMATED_IMPROVEMENT} (illustrative)`);
 
-  const pdfTraffic = 1000;
-  const pdfPrice = data.price_guess || 50;
+  const pdfTraffic = DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
+  const pdfPrice = data.price_guess || DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
   const insightPaidHtml = buildInsightLayersHtml(
     data,
     true,
@@ -391,7 +397,7 @@ export async function generatePaidAgencyReportHTML(
   const visualPage = `<div class="report-page">
     <h2>Visual analysis</h2>
     <div class="chart-block">
-      <p class="chart-block__title">Site score radar</p>
+      <p class="chart-block__title">Site Score</p>
       <div class="chart-box">${radarSvg}</div>
       <p class="chart-block__caption">Category scores on a common scale for quick comparison.</p>
     </div>

@@ -84,6 +84,11 @@ function mapAuthError(error: unknown): Error {
   if (code === "auth/too-many-requests") {
     return new Error("Too many attempts. Try again later.");
   }
+  if (code === "auth/auth-domain-config-required" || code === "auth/unauthorized-domain") {
+    return new Error(
+      "This site's domain is not allowed for sign-in. In Firebase Console → Authentication → Settings, add your domain under Authorized domains (e.g. your Vercel URL without path)."
+    );
+  }
   const message =
     error &&
     typeof error === "object" &&
@@ -111,11 +116,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (userSnap.exists()) {
         const userData = userSnap.data();
+        const rawPlan = userData.plan;
+        const normalizedPlan =
+          typeof rawPlan === "string"
+            ? (["free", "pro", "agency"].includes(rawPlan.toLowerCase())
+                ? (rawPlan.toLowerCase() as User["plan"])
+                : "free")
+            : "free";
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
           credits: userData.credits ?? newUserCreditsDefault(),
-          plan: userData.plan || "free",
+          plan: normalizedPlan,
           displayName: firebaseUser.displayName || userData.displayName,
           photoURL: firebaseUser.photoURL || userData.photoURL,
         });
@@ -264,6 +276,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (code === "auth/network-request-failed") {
         throw new Error(
           "Network error. Please check your connection and try again."
+        );
+      }
+      if (code === "auth/auth-domain-config-required" || code === "auth/unauthorized-domain") {
+        throw new Error(
+          "This site's domain is not allowed for Google sign-in. In Firebase Console → Authentication → Settings, add your domain under Authorized domains (e.g. your Vercel URL)."
         );
       }
       if (message) {

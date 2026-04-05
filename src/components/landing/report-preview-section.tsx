@@ -6,6 +6,7 @@ import { ArrowDown } from "lucide-react";
 import { RoastRadar } from "@/components/roast-radar";
 import { getIndustryInsiderPoints } from "@/lib/industry-insider-copy";
 import { scrollToSection } from "./landing-scroll";
+import { RADAR_AXIS_EXPLANATIONS, type RadarAxisLabel } from "@/lib/radar-axis-scores";
 
 const RADAR_SAMPLE = [
   { label: "UX", score: 68 },
@@ -108,7 +109,7 @@ export function ReportPreviewSection() {
             </Card>
 
             <div className="mt-4 rounded-lg border border-border-muted bg-surface-2/25 px-4 py-3">
-              <p className="text-label mb-2 text-muted-foreground">Industry insider</p>
+              <p className="text-label mb-2 text-muted-foreground">AI Insights</p>
               <ul className="space-y-2 text-sm text-foreground">
                 {previewInsider.map((line, i) => (
                   <li key={`preview-insider-${i}`} className="flex gap-2">
@@ -120,17 +121,20 @@ export function ReportPreviewSection() {
             </div>
 
             <div className="mt-4">
-              <p className="text-label mb-2 text-muted-foreground">Site score radar (six axes)</p>
+              <p className="text-label mb-2 text-muted-foreground">Site Score</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
                 {RADAR_SAMPLE.map(({ label, score }) => (
                   <div
                     key={label}
-                    className="rounded-lg border border-border-muted bg-surface-2/30 px-3 py-2 text-center"
+                    className="flex min-h-[6.75rem] flex-col justify-center rounded-lg border border-border-muted bg-surface-2/30 px-3 py-4 text-center sm:min-h-[7.25rem]"
                   >
                     <div className="text-xs font-medium text-muted-foreground">{label}</div>
-                    <div className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                    <div className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground">
                       {score}
                     </div>
+                    <p className="mt-2 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
+                      {RADAR_AXIS_EXPLANATIONS[label as RadarAxisLabel]}
+                    </p>
                   </div>
                 ))}
               </div>

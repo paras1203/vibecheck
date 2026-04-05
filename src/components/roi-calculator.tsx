@@ -144,10 +144,10 @@ export function ROICalculator({
         </CardContent>
       </Card>
 
-      {/* Industry Insider */}
+      {/* AI Insights */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">🧠 Industry Insider</CardTitle>
+          <CardTitle className="text-lg">🧠 AI Insights</CardTitle>
         </CardHeader>
         <CardContent>
           <ul className="space-y-2">

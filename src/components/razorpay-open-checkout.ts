@@ -88,9 +88,23 @@ export async function openRazorpayCheckout(
               planId,
             }),
           });
-          const out = await v.json();
+          const out = (await v.json()) as {
+            error?: string;
+            details?: unknown;
+            credits?: number;
+            plan?: string;
+          };
           if (!v.ok) {
-            throw new Error(out.error || out.details || "Verification failed");
+            const detail =
+              typeof out.details === "string"
+                ? out.details
+                : out.details != null
+                  ? JSON.stringify(out.details)
+                  : "";
+            const msg =
+              [out.error, detail].filter(Boolean).join(": ") ||
+              `Verification failed (HTTP ${v.status})`;
+            throw new Error(msg);
           }
           toast.success("Payment successful");
           resolve({
