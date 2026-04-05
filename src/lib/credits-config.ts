@@ -1,3 +1,11 @@
+import { readCreditsFromFirestoreValue } from "@/lib/firestore-credits";
+
+/** Credits from a `users/{uid}` document: missing field uses signup default; coerces strings. */
+export function coerceUserCreditsFromDocument(raw: unknown): number {
+  if (raw === undefined || raw === null) return newUserCreditsDefault();
+  return readCreditsFromFirestoreValue(raw);
+}
+
 /** Credits assigned to brand-new Firestore user profiles (not existing docs). */
 export function newUserCreditsDefault(): number {
   const raw = process.env.NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS;

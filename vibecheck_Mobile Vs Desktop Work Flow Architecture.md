@@ -276,7 +276,7 @@ Unchanged routes; landing roast modal widens on teaser step (`max-w-3xl`).
 - Post-sign-in navigation uses `router.replace(next)` only after Firestore sync finishes (`!isSyncing`); removed duplicate immediate `router.push` after Google/email handlers.
 
 ### 2.2 Billing (delta)
-- `GET /api/razorpay/config` exposes `{ configured, testMode }` from key id prefix; `/billing` shows a sandbox banner when `testMode`. After checkout, client calls `refreshProfile()` plus `updateCreditsAndPlan`.
+- After checkout, client calls `refreshProfile()` plus `updateCreditsAndPlan`. (Removed `/api/razorpay/config` sandbox banner.)
 
 ### 2.3 Protected app routes (delta)
 - `useRequireAuth` sends users to `/login?next=<pathname>` via `router.replace`.

@@ -1474,6 +1474,25 @@ export async function POST(request: NextRequest) {
       if (chargeCost > 0) {
         const debit = await debitRoastCreditsIfSufficient(chargeUid, chargeCost);
         if (!debit.ok) {
+          if (debit.reason === "no_profile") {
+            return NextResponse.json(
+              {
+                error: "Profile not found",
+                details:
+                  "Cloud Firestore has no user document for this account. In Firebase Console enable Firestore (not Realtime Database), publish rules that allow signed-in users to read/write users/{userId}, then sign out and back in.",
+              },
+              { status: 403 }
+            );
+          }
+          if (debit.reason === "persistence_error") {
+            return NextResponse.json(
+              {
+                error: "Could not verify credits",
+                details: "Database error while checking your balance. Try again in a moment.",
+              },
+              { status: 503 }
+            );
+          }
           return NextResponse.json(
             {
               error: "Insufficient credits",

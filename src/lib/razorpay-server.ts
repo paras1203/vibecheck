@@ -75,6 +75,27 @@ export async function assertRazorpayPaymentMatchesPlan(
     throw new Error("Payment does not match order");
   }
   const expected = PLAN_AMOUNT_PAISE[planId];
+  type OrderShape = { notes?: Record<string, string>; amount?: number | string };
+  let order: OrderShape | null = null;
+  try {
+    order = (await rzp.orders.fetch(orderId)) as OrderShape;
+  } catch (e) {
+    console.warn("[razorpay] orders.fetch failed; validating payment only", e);
+  }
+  if (order) {
+    const notes = order.notes;
+    const rawPlan = notes?.planId ?? notes?.plan_id;
+    const orderPlan = typeof rawPlan === "string" ? rawPlan : "";
+    if (orderPlan && orderPlan.toLowerCase() !== planId.toLowerCase()) {
+      throw new Error(`Order plan mismatch (order: ${orderPlan}, checkout: ${planId})`);
+    }
+    const orderAmount = Number(order.amount);
+    if (Number.isFinite(orderAmount) && orderAmount !== expected) {
+      throw new Error(
+        `Order amount mismatch (expected ${expected} minor units, order has ${String(order.amount)})`
+      );
+    }
+  }
   const paidAmount = Number(payment.amount);
   if (!Number.isFinite(paidAmount) || paidAmount !== expected) {
     throw new Error(

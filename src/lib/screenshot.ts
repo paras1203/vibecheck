@@ -84,35 +84,31 @@ async function autoScroll(
 }
 
 /**
- * Configures and returns a puppeteer-extra instance with stealth plugins
- * Works with both regular puppeteer (dev) and puppeteer-core (production)
- * Uses dynamic imports with string literals to avoid Turbopack bundling
- * These packages are marked as external in next.config.ts
+ * Returns Puppeteer with `.launch` (puppeteer-core compatible).
+ * On Vercel: plain puppeteer-core only — stealth plugins use dynamic requires under
+ * `puppeteer-extra-plugin-stealth/evasions/*` that Next output tracing does not ship.
  */
 export async function getPuppeteerWithStealth() {
-  // Use dynamic imports with string literals - Next.js will not bundle these
-  // because they're in serverExternalPackages
-  // Using .then() to handle default exports from CommonJS modules
+  if (process.env.VERCEL) {
+    const pc = await import("puppeteer-core");
+    return pc.default;
+  }
+
   const puppeteerExtraModule = await import("puppeteer-extra");
   const StealthPluginModule = await import("puppeteer-extra-plugin-stealth");
   const AnonymizeUAPluginModule = await import("puppeteer-extra-plugin-anonymize-ua");
-  
-  // Handle default exports (CommonJS modules export as default in ESM)
+
   const puppeteerExtra = puppeteerExtraModule.default || puppeteerExtraModule;
   const StealthPlugin = StealthPluginModule.default || StealthPluginModule;
   const AnonymizeUAPlugin = AnonymizeUAPluginModule.default || AnonymizeUAPluginModule;
-  
-  // Get the base puppeteer instance first
-  // puppeteer-extra needs the base to be available in the module resolution
+
   if (!isLocalDev) {
-    // In production, ensure puppeteer-core is available to puppeteer-extra
     await import("puppeteer-core");
   }
-  
-  // Enable stealth mode - these plugins work with both puppeteer and puppeteer-core
+
   puppeteerExtra.use(StealthPlugin());
   puppeteerExtra.use(AnonymizeUAPlugin());
-  
+
   return puppeteerExtra;
 }
 

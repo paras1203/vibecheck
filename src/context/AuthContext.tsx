@@ -28,7 +28,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 import { mergeLegacyRoastHistoryIntoUser } from "@/lib/roast-history";
-import { newUserCreditsDefault } from "@/lib/credits-config";
+import { coerceUserCreditsFromDocument, newUserCreditsDefault } from "@/lib/credits-config";
 
 export interface User {
   uid: string;
@@ -37,6 +37,8 @@ export interface User {
   plan: "free" | "pro" | "agency";
   displayName?: string;
   photoURL?: string;
+  /** False when Firestore profile could not be loaded; do not trust `credits` for billing UI. */
+  firestoreSynced: boolean;
 }
 
 interface AuthContextType {
@@ -126,10 +128,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
-          credits: userData.credits ?? newUserCreditsDefault(),
+          credits: coerceUserCreditsFromDocument(userData.credits),
           plan: normalizedPlan,
           displayName: firebaseUser.displayName || userData.displayName,
           photoURL: firebaseUser.photoURL || userData.photoURL,
+          firestoreSynced: true,
         });
       } else {
         const starter = newUserCreditsDefault();
@@ -140,10 +143,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           plan: "free",
           displayName: firebaseUser.displayName || undefined,
           photoURL: firebaseUser.photoURL || undefined,
+          firestoreSynced: true,
         };
 
         await setDoc(userRef, {
-          ...newUser,
+          uid: newUser.uid,
+          email: newUser.email,
+          credits: newUser.credits,
+          plan: newUser.plan,
+          displayName: newUser.displayName,
+          photoURL: newUser.photoURL,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -158,10 +167,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         uid: firebaseUser.uid,
         email: firebaseUser.email || "",
-        credits: newUserCreditsDefault(),
+        credits: 0,
         plan: "free",
         displayName: firebaseUser.displayName || undefined,
         photoURL: firebaseUser.photoURL || undefined,
+        firestoreSynced: false,
       });
       mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
       setIsSyncing(false);
@@ -206,6 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             plan: prev?.uid === fbUser.uid ? prev.plan : "free",
             displayName: fbUser.displayName || prev?.displayName,
             photoURL: fbUser.photoURL || prev?.photoURL,
+            firestoreSynced: false,
           }));
           setLoading(false);
           setIsSyncing(true);
@@ -361,6 +372,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({
         ...user,
         credits: newCredits,
+        firestoreSynced: true,
       });
     }
   };
@@ -371,6 +383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...user,
         credits: newCredits,
         plan,
+        firestoreSynced: true,
       });
     }
   };
@@ -385,7 +398,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Not signed in.");
     }
     await updateProfile(fb, { displayName: trimmed });
-    setUser((u) => (u ? { ...u, displayName: trimmed } : u));
+    setUser((u) => (u ? { ...u, displayName: trimmed, firestoreSynced: u.firestoreSynced } : u));
   };
 
   const sendPasswordResetToEmail = async (email: string) => {

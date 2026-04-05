@@ -447,3 +447,10 @@
 
 **Constraint:** Confirmed this log entry was appended when completing this batch.
 
+## 2026-04-05 - Firebase DB visibility, phantom credits, Razorpay credits, billing copy
+**Category:** Core Logic / Bugfix / Feature Request
+**Instruction:**
+> Check Firebase DB setup (no database in console). Dashboard shows 20 credits but cannot start roast—root cause and fix. Sandbox Razorpay agency pack does not add credits. Remove Razorpay sandbox banner text from billing page.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+

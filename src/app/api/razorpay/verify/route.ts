@@ -9,6 +9,7 @@ import {
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { mergePlanAfterPurchase } from "@/lib/plan-merge";
 import { newUserCreditsDefault } from "@/lib/credits-config";
+import { coerceUserCreditsFromDocument } from "@/lib/credits-config";
 
 const bodySchema = z.object({
   razorpay_order_id: z.string(),
@@ -47,7 +48,22 @@ export async function POST(request: NextRequest) {
     }
 
     const credits = PLAN_PURCHASE_CREDITS[planId as PaidPlanId];
-    const userRef = getAdminDb().collection("users").doc(userId);
+    const db = getAdminDb();
+    const userRef = db.collection("users").doc(userId);
+    const paymentRef = db.collection("payments").doc(razorpay_payment_id);
+
+    const existingPaid = await paymentRef.get();
+    if (existingPaid.exists) {
+      const fresh = await userRef.get();
+      const d = fresh.data();
+      return NextResponse.json({
+        success: true,
+        credits: coerceUserCreditsFromDocument(d?.credits),
+        plan: (d?.plan as string) || "free",
+        duplicate: true,
+      });
+    }
+
     let userDoc = await userRef.get();
     if (!userDoc.exists) {
       await userRef.set(
@@ -62,51 +78,58 @@ export async function POST(request: NextRequest) {
       userDoc = await userRef.get();
     }
 
-    const paySnap = await getAdminDb()
-      .collection("payments")
-      .where("paymentId", "==", razorpay_payment_id)
-      .limit(1)
-      .get();
+    const result = await db.runTransaction(async (tx) => {
+      const paidSnap = await tx.get(paymentRef);
+      if (paidSnap.exists) {
+        const u = await tx.get(userRef);
+        return {
+          duplicate: true as const,
+          credits: coerceUserCreditsFromDocument(u.data()?.credits),
+          plan: (u.data()?.plan as string) || "free",
+        };
+      }
+      const u = await tx.get(userRef);
+      const cur = coerceUserCreditsFromDocument(u.data()?.credits);
+      const next = cur + credits;
+      const prevPlan = u.data()?.plan as string | undefined;
+      const nextPlan = mergePlanAfterPurchase(prevPlan, planId);
+      tx.set(
+        userRef,
+        {
+          credits: next,
+          plan: nextPlan,
+          updatedAt: new Date(),
+        },
+        { merge: true }
+      );
+      tx.set(paymentRef, {
+        userId,
+        provider: "razorpay",
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        planId,
+        credits,
+        creditsAfter: next,
+        planAfter: nextPlan,
+        status: "paid",
+        createdAt: new Date(),
+      });
+      return { duplicate: false as const, credits: next, plan: nextPlan };
+    });
 
-    if (!paySnap.empty) {
-      const fresh = await userRef.get();
-      const d = fresh.data();
+    if (result.duplicate) {
       return NextResponse.json({
         success: true,
-        credits: Number(d?.credits ?? 0),
-        plan: (d?.plan as string) || "free",
+        credits: result.credits,
+        plan: result.plan,
         duplicate: true,
       });
     }
 
-    const currentCredits = userDoc.data()?.credits || 0;
-    const newCredits = currentCredits + credits;
-    const prevPlan = userDoc.data()?.plan as string | undefined;
-    const nextPlan = mergePlanAfterPurchase(prevPlan, planId);
-
-    await userRef.update({
-      credits: newCredits,
-      plan: nextPlan,
-      updatedAt: new Date(),
-    });
-
-    await getAdminDb().collection("payments").add({
-      userId,
-      provider: "razorpay",
-      orderId: razorpay_order_id,
-      paymentId: razorpay_payment_id,
-      planId,
-      credits,
-      creditsAfter: newCredits,
-      planAfter: nextPlan,
-      status: "paid",
-      createdAt: new Date(),
-    });
-
     return NextResponse.json({
       success: true,
-      credits: newCredits,
-      plan: nextPlan,
+      credits: result.credits,
+      plan: result.plan,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

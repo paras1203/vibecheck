@@ -358,3 +358,28 @@ PDF route implementation (if product requires).
 - Landing `/`, `/home` — `idToken` from `firebaseUser`.
 
 **Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-05 - Vercel: puppeteer-extra stealth evasions missing
+
+### 3. Workflows (delta)
+- `getPuppeteerWithStealth()` in `src/lib/screenshot.ts`: when `VERCEL` is set, returns `puppeteer-core` only (no `puppeteer-extra` / stealth plugins). Stealth loads evasions via dynamic `require()` paths that Next output file tracing does not deploy to `/var/task`.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-05 - Firestore vs UI credits, Razorpay verify idempotency
+
+### 1. Directory Structure (delta)
+- `src/lib/firestore-credits.ts`, `src/lib/credits-balance-display.ts` — numeric coercion + UI balance string.
+- Removed `src/app/api/razorpay/config/route.ts` (billing sandbox banner removed).
+
+### 2. Site Map (delta)
+- `/api/razorpay/config` removed.
+
+### 3. Workflows (delta)
+- Auth: Firestore sync failure sets `credits: 0`, `firestoreSynced: false` (no phantom signup default). Razorpay verify uses a transaction + `payments/{paymentId}` doc for idempotency; credits math uses numeric coercion (fixes string concat). Roast debit returns `no_profile` / `persistence_error` with distinct HTTP statuses.
+
+**Confirmed:** This structure log was appended.

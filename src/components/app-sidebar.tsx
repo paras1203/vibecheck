@@ -20,6 +20,7 @@ import Link from "next/link";
 import { IconFrame } from "@/components/ui/icon-frame";
 import { MetricCard } from "@/components/ui/metric-card";
 import { BRAND_NAME } from "@/lib/brand";
+import { formatCreditsBalance } from "@/lib/credits-balance-display";
 
 function SidebarNavFallback() {
   return (
@@ -152,8 +153,15 @@ export function AppSidebar() {
             className="mt-3 border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground shadow-none [&_.text-caption]:text-sidebar-foreground/60"
             label="Credits"
             value={
-              <span className="font-mono text-2xl font-semibold tabular-nums text-sidebar-primary">
-                {user.credits}
+              <span
+                className="font-mono text-2xl font-semibold tabular-nums text-sidebar-primary"
+                title={
+                  user.firestoreSynced
+                    ? undefined
+                    : "Could not load your balance from Firestore. Enable Firestore in Firebase Console and check security rules."
+                }
+              >
+                {formatCreditsBalance(user)}
               </span>
             }
           />

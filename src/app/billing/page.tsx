@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Zap } from "lucide-react";
 import { IconFrame } from "@/components/ui/icon-frame";
 import { openRazorpayCheckout } from "@/components/razorpay-open-checkout";
+import { formatCreditsBalance } from "@/lib/credits-balance-display";
 
 interface PaymentPlan {
   id: "pro" | "agency";
@@ -79,7 +80,6 @@ function BillingPageContent() {
   const [loading, setLoading] = useState<string | null>(null);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
   const paidToastRef = useRef(false);
-  const [razorpayTestMode, setRazorpayTestMode] = useState<boolean | null>(null);
 
   useEffect(() => {
     const plan = searchParams.get("plan");
@@ -95,22 +95,6 @@ function BillingPageContent() {
     paidToastRef.current = true;
     toast.success("Payment complete", { description: "Your credits are updated." });
   }, [searchParams]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await fetch("/api/razorpay/config");
-        const j = (await r.json()) as { testMode?: boolean };
-        if (!cancelled) setRazorpayTestMode(Boolean(j.testMode));
-      } catch {
-        if (!cancelled) setRazorpayTestMode(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const runCheckout = useCallback(
     async (planId: "pro" | "agency") => {
@@ -189,19 +173,6 @@ function BillingPageContent() {
               </p>
             </div>
 
-            {razorpayTestMode === true && (
-              <div
-                className="mb-6 rounded-lg border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
-                role="status"
-              >
-                <span className="font-medium">Razorpay sandbox (test keys)</span>
-                {" — "}
-                Checkout uses test mode until you deploy live{" "}
-                <code className="rounded bg-muted px-1 text-xs">rzp_live_</code> keys. Use Razorpay test
-                cards for payments.
-              </div>
-            )}
-
             {user && (
               <Card className="mb-8">
                 <CardHeader>
@@ -213,8 +184,15 @@ function BillingPageContent() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="mb-2 font-mono text-4xl font-semibold tabular-nums text-primary">
-                    {user.credits}
+                  <div
+                    className="mb-2 font-mono text-4xl font-semibold tabular-nums text-primary"
+                    title={
+                      user.firestoreSynced
+                        ? undefined
+                        : "Balance could not be loaded from Firestore."
+                    }
+                  >
+                    {formatCreditsBalance(user)}
                   </div>
                   <p className="text-sm text-muted-foreground">Available roast credits</p>
                 </CardContent>

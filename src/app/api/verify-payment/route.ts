@@ -3,6 +3,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import { z } from "zod";
 import { getAdminDb } from "@/lib/firebase-admin";
+import { coerceUserCreditsFromDocument } from "@/lib/credits-config";
 import { mergePlanAfterPurchase } from "@/lib/plan-merge";
 
 const verifyPaymentSchema = z.object({
@@ -66,7 +67,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const currentCredits = userDoc.data()?.credits || 0;
+    const currentCredits = coerceUserCreditsFromDocument(userDoc.data()?.credits);
     const newCredits = currentCredits + credits;
     const prevPlan = userDoc.data()?.plan as string | undefined;
     const nextPlan = mergePlanAfterPurchase(prevPlan, purchasedPlan);

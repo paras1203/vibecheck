@@ -20,6 +20,7 @@ import { buildRoastTeaser } from "@/lib/roast-teaser";
 import { persistRoastForClientNavigation, stripRoastApiBillingFields } from "@/lib/roast-storage";
 import type { AuditReportPayload } from "@/lib/report-html";
 import { isPreviewRoastFree } from "@/lib/credits-config";
+import { formatCreditsBalance } from "@/lib/credits-balance-display";
 type RoastPhase = "idle" | "analyzing" | "teaser";
 
 export default function Home() {
@@ -66,6 +67,12 @@ export default function Home() {
         const details = data.details ? `: ${String(data.details)}` : "";
         if (response.status === 402) {
           toast.error("Not enough credits", { description: String(data.details || errorMsg) });
+        }
+        if (response.status === 403) {
+          toast.error("Account setup required", { description: String(data.details || errorMsg) });
+        }
+        if (response.status === 503) {
+          toast.error("Could not verify credits", { description: String(data.details || errorMsg) });
         }
         throw new Error(`${errorMsg}${details}`);
       }
@@ -133,8 +140,12 @@ export default function Home() {
   const accountCreditsLine =
     user && roastPhase === "teaser"
       ? isPreviewRoastFree()
-        ? `This preview is free (0 credits). Your balance: ${user.credits} credits.`
-        : `Credits remaining: ${user.credits}`
+        ? user.firestoreSynced
+          ? `This preview is free (0 credits). Your balance: ${formatCreditsBalance(user)} credits.`
+          : "This preview is free. Your Firestore profile did not load—check the Firebase Console (enable Cloud Firestore and security rules for users/{uid})."
+        : user.firestoreSynced
+          ? `Credits remaining: ${formatCreditsBalance(user)}`
+          : "Credits could not be loaded from Firestore."
       : null;
 
   const roastForm = {
