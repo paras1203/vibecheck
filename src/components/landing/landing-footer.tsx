@@ -17,8 +17,13 @@ export function LandingFooter() {
               Paste your URL on the hero — your first pass is minutes away.
             </p>
           </div>
-          <Button size="lg" className="rounded-lg px-10 font-semibold" asChild>
-            <Link href="/">Back to top</Link>
+          <Button
+            type="button"
+            size="lg"
+            className="rounded-lg px-10 font-semibold"
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+          >
+            Back to top
           </Button>
         </div>
         <div className="mt-12 flex flex-col items-center justify-between gap-4 md:flex-row">

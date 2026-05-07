@@ -1,4 +1,4 @@
-# Cursor MCP config often holds secrets (e.g. Razorpay AUTH_HEADER)
+# Cursor MCP config often holds secrets (e.g. payment processor keys)
 .cursor/mcp.json
 
 .env
@@ -8,6 +8,7 @@
 .env.test.local
 .env.production.local
 .next/
+.next
 out/
 dist/
 *.pem

@@ -15,8 +15,22 @@ export function stripNarrativeSegmentLabels(text: string): string {
   return t;
 }
 
+/** Plain-text-friendly display: remove common markdown markers from AI prose. */
+export function stripDisplayMarkdown(text: string): string {
+  let s = text;
+  for (let i = 0; i < 8; i++) {
+    const next = s
+      .replace(/\*\*([^*]+)\*\*/g, "$1")
+      .replace(/__([^_]+)__/g, "$1")
+      .replace(/`([^`]+)`/g, "$1");
+    if (next === s) break;
+    s = next;
+  }
+  return s.replace(/\*([^*]+)\*/g, "$1").replace(/_([^_]+)_/g, "$1").trim();
+}
+
 /** Shared product copy for paid upgrade / full diagnostic (keep in sync with billing display price). */
-export const PRO_REPORT_PRICE_DISPLAY = "$19";
+export const PRO_REPORT_PRICE_DISPLAY = "$29";
 
 export const FULL_REPORT_HEADLINE = "Unlock the full diagnostic layer";
 

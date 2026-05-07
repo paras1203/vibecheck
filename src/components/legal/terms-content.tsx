@@ -90,7 +90,7 @@ export function TermsContent() {
         <p className="text-muted-foreground">
           Paid features and <span className="text-foreground">roast credits</span> are billed as described at
           checkout or on our pricing page. Payments are processed in <span className="text-foreground">USD</span>{" "}
-          through <span className="text-foreground">Razorpay</span> (or another processor we designate). You
+          through <span className="text-foreground">Dodo Payments</span> (or another processor we designate). You
           authorise us and our payment partners to charge your selected payment method.
         </p>
         <p className="text-muted-foreground">

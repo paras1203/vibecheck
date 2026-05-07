@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconFrame } from "@/components/ui/icon-frame";
-import { Badge } from "@/components/ui/badge";
 import { Search, Gauge } from "lucide-react";
 import {
   formatSeoIssueLabel,
   formatSeoIssueSolution,
   type SeoAppendixInput,
 } from "@/lib/report-seo-appendix";
+import { radarScoreValueClass } from "@/lib/radar-axis-scores";
+import { cn } from "@/lib/utils";
 
 /** Gated like extra quick-fix rows for free users. */
 const PAYWALL_SEO_ISSUE_TYPES = new Set([
@@ -51,7 +52,12 @@ export function RoastSeoHealthBlock({ data, hasFullReportAccess = true }: Props)
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pt-0 text-sm">
-        <p className="font-mono text-xl font-semibold tabular-nums text-primary md:text-2xl">
+        <p
+          className={cn(
+            "font-mono text-xl font-semibold tabular-nums md:text-2xl",
+            radarScoreValueClass(seo.score)
+          )}
+        >
           {seo.score}
           <span className="text-sm font-normal text-muted-foreground">/100</span>
         </p>
@@ -103,7 +109,7 @@ export function RoastSeoHealthBlock({ data, hasFullReportAccess = true }: Props)
                     <li
                       key={`${issue.type}-${i}-locked`}
                       className="rounded-lg border border-dashed border-border-muted bg-muted/10 px-3 py-2.5"
-                      aria-label={`${issue.type} details require full report`}
+                      aria-label="Full report details are required to view this recommendation"
                     >
                       <div className="space-y-2" aria-hidden>
                         <div className="h-3.5 w-[min(12rem,55%)] rounded-md bg-muted" />
@@ -118,14 +124,9 @@ export function RoastSeoHealthBlock({ data, hasFullReportAccess = true }: Props)
                     key={`${issue.type}-${i}`}
                     className="rounded-lg border border-border-muted bg-muted/20 px-3 py-2.5"
                   >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary" className="text-[10px] font-normal">
-                        {issue.type}
-                      </Badge>
-                      <span className="text-sm font-medium text-foreground">
-                        {formatSeoIssueLabel(issue.type)}
-                      </span>
-                    </div>
+                    <span className="text-sm font-medium text-foreground">
+                      {formatSeoIssueLabel(issue.type)}
+                    </span>
                     <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
                       <span className="font-medium text-foreground/90">Fix: </span>
                       {formatSeoIssueSolution(issue.type)}
@@ -174,7 +175,14 @@ export function RoastPageSpeedBlock({ data }: Props) {
         {typeof performance.performanceScore === "number" ? (
           <p>
             <span className="font-medium text-foreground">Performance score:</span>{" "}
-            {performance.performanceScore}
+            <span
+              className={cn(
+                "font-mono font-semibold tabular-nums",
+                radarScoreValueClass(performance.performanceScore)
+              )}
+            >
+              {performance.performanceScore}
+            </span>
           </p>
         ) : null}
         {performance.lcp ? (

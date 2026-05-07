@@ -54,8 +54,8 @@ export function PrivacyPolicyContent() {
             security logs. This helps us operate, secure, and improve the Service.
           </li>
           <li>
-            <span className="text-foreground">Billing-related data.</span> When you pay via Razorpay (or another
-            processor we use), they process payment details; we typically receive limited billing metadata (for
+            <span className="text-foreground">Billing-related data.</span> When you pay via Dodo Payments
+            (or another processor we use), they process payment details; we typically receive limited billing metadata (for
             example transaction IDs, plan, credits purchased, and payment status), not your full card or bank
             details.
           </li>
@@ -136,7 +136,7 @@ export function PrivacyPolicyContent() {
             hosting, databases, and related infrastructure;
           </li>
           <li>
-            <span className="text-foreground">Razorpay</span> (or other payment processors) for payments and
+            <span className="text-foreground">Dodo Payments</span> (or other payment processors) for payments and
             order handling;
           </li>
           <li>

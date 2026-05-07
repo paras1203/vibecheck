@@ -1,17 +1,17 @@
+/**
+ * Paid product units and display amounts (USD). Checkout is wired through Dodo product IDs in env.
+ */
+
 export type PaidPlanId = "pro" | "agency";
 
-export type RazorpayBillingCurrency = "INR" | "USD";
+/** Includes one-off gateway test SKU (does not upgrade plan). */
+export type BillingCheckoutPlanId = PaidPlanId | "free_test";
 
-/**
- * Razorpay order currency. Default **INR** (typical India merchant keys); USD requires
- * international payments enabled on the Razorpay account. Set `RAZORPAY_CURRENCY=USD` when supported.
- */
-function resolveRazorpayCurrency(): RazorpayBillingCurrency {
-  const c = process.env.RAZORPAY_CURRENCY?.trim().toUpperCase();
-  return c === "USD" ? "USD" : "INR";
-}
-
-export const PLAN_CURRENCY = resolveRazorpayCurrency();
+export const LIST_SINGLE_USD = 79;
+export const CHECKOUT_SINGLE_USD = 29;
+export const AGENCY_PACK_CREDITS = 5;
+export const LIST_AGENCY_PACK_USD = LIST_SINGLE_USD * AGENCY_PACK_CREDITS;
+export const CHECKOUT_AGENCY_PACK_USD = 99;
 
 function intEnv(name: string, fallback: number): number {
   const v = process.env[name];
@@ -21,22 +21,32 @@ function intEnv(name: string, fallback: number): number {
 }
 
 /**
- * Order total in smallest currency units (INR → paise, USD → cents).
- * INR defaults match common test/live checkouts; override with PLAN_*_AMOUNT_PAISE.
+ * Credits per purchased unit:
+ * — Pro unit = 1 credit line item in cart (qty = number of roast credits).
+ * — Agency unit = 1 bundle of credits (qty = pack count).
  */
-export const PLAN_AMOUNT_PAISE: Record<PaidPlanId, number> =
-  PLAN_CURRENCY === "USD"
-    ? {
-        pro: 1900,
-        agency: 5900,
-      }
-    : {
-        pro: intEnv("PLAN_PRO_AMOUNT_PAISE", 159900),
-        agency: intEnv("PLAN_AGENCY_AMOUNT_PAISE", 409900),
-      };
-
-/** Credits granted after a successful Razorpay purchase (override via env). */
-export const PLAN_PURCHASE_CREDITS: Record<PaidPlanId, number> = {
+export const PLAN_PURCHASE_CREDITS_PER_UNIT: Record<PaidPlanId, number> = {
   pro: intEnv("PLAN_PRO_AUDIT_CREDITS", 1),
-  agency: intEnv("PLAN_AGENCY_AUDIT_CREDITS", 5),
+  agency: intEnv("PLAN_AGENCY_AUDIT_CREDITS", AGENCY_PACK_CREDITS),
 };
+
+export function creditsForPurchase(planId: PaidPlanId, unitQuantity: number): number {
+  return PLAN_PURCHASE_CREDITS_PER_UNIT[planId] * unitQuantity;
+}
+
+export const CHECKOUT_FREE_TEST_USD = 0.1;
+
+/** Max selectable quantity per checkout (invoice size). */
+export const MAX_PRO_CHECKOUT_UNITS = 50;
+export const MAX_AGENCY_PACK_UNITS = 20;
+
+export function normalizeCheckoutQty(planId: BillingCheckoutPlanId, raw: unknown): number {
+  if (planId === "free_test") return 1;
+  const n = typeof raw === "number" ? raw : parseInt(String(raw ?? ""), 10);
+  if (!Number.isFinite(n)) return 1;
+  const i = Math.floor(n);
+  if (planId === "agency") {
+    return Math.min(MAX_AGENCY_PACK_UNITS, Math.max(1, i));
+  }
+  return Math.min(MAX_PRO_CHECKOUT_UNITS, Math.max(1, i));
+}

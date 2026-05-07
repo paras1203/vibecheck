@@ -1,6 +1,6 @@
 # Vibecheck audit process (end-to-end)
 
-This document describes how a URL becomes a roast report in the current stack: **Next.js** (`src/app/api/roast`) for orchestration, **Puppeteer** for capture and quick scan, **Google Gemini** for multi-worker analysis, plus **client-side** report viewing, HTML/PDF export, and **Razorpay** for paid unlock.
+This document describes how a URL becomes a roast report in the current stack: **Next.js** (`src/app/api/roast`) for orchestration, **Puppeteer** for capture and quick scan, **Google Gemini** for multi-worker analysis, plus **client-side** report viewing, HTML/PDF export, and **Dodo Payments** for paid unlock.
 
 ---
 
@@ -11,7 +11,7 @@ This document describes how a URL becomes a roast report in the current stack: *
 | Landing `/` or `/home` | User enters URL → `POST /api/roast` → JSON stored in `localStorage` under `roast_{id}` → optional navigation to `/roast/[id]`. |
 | Authenticated history | Same payload shape; server may persist roasts by id (see `src/app/api/roast/[id]`). |
 
-**Auth and plans:** Full report UI (all audit rows, exports) is gated by **Pro/Agency plan**, admin, or dev bypass (`NEXT_PUBLIC_SKIP_PAYMENT_UNLOCK`). New users receive **default credits** from `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` (default **20** in code—aligned with one debit when each loader step costs a credit); purchasing via Razorpay adds **plan credits** from `PLAN_PRO_AUDIT_CREDITS` / `PLAN_AGENCY_AUDIT_CREDITS`. Logged-in `POST /api/roast` sends `idToken` and debits `ROAST_CREDITS_PER_GENERATION` (default = loader step count unless overridden).
+**Auth and plans:** Full report UI (all audit rows, exports) is gated by **Pro/Agency plan**, admin, or dev bypass (`NEXT_PUBLIC_SKIP_PAYMENT_UNLOCK`). New users receive **default credits** from `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` (default **20** in code—aligned with one debit when each loader step costs a credit); purchasing via **Dodo Payments** adds **plan credits** from `PLAN_PRO_AUDIT_CREDITS` / `PLAN_AGENCY_AUDIT_CREDITS`. Logged-in `POST /api/roast` sends `idToken` and debits `ROAST_CREDITS_PER_GENERATION` (default = loader step count unless overridden).
 
 ---
 
@@ -116,13 +116,13 @@ This is the **total LLM token count** for the audit (sum of all stages). Legacy 
 
 ---
 
-## 12. Billing (Razorpay)
+## 12. Billing (Dodo Payments)
 
-1. **`POST /api/razorpay/create-order`** creates an order with **amount in smallest currency units** (USD cents) from `PLAN_AMOUNT_PAISE` and **`PLAN_CURRENCY`** (USD).
-2. Checkout runs in the browser; on success the handler **`POST /api/razorpay/verify`** with `razorpay_order_id`, `razorpay_payment_id`, `razorpay_signature`, `userId`, `planId`.
-3. Server verifies **HMAC signature**, then **`payments.fetch(payment_id)`** to confirm **captured/authorized**, **order id**, **amount**, and **currency** (avoids relying on order `notes` or delayed `order.status`).
+1. **`POST /api/dodo/create-session`** builds a checkout session with **`product_cart`** (Pro unit, Agency 5-pack, or sandbox **$0.10** SKU) plus **metadata** (`firebase_uid`, `vc_plan`, `vc_unit_qty`). The customer is redirected to Dodo-hosted checkout (`checkout_url`).
+2. After completion, **Dodo** redirects back to **`/billing`** with `payment_id` and `status`; the client **`POST /api/dodo/verify`** with a Firebase Bearer token.
+3. The server retrieves **`payments.retrieve(payment_id)`**, checks **`status === succeeded`**, and validates **`metadata`** plus **line items** match the expected SKUs for that user (`assertPaymentMatchesCheckout`).
 4. **Idempotency**: if `payments` collection already has this `paymentId`, the handler returns success without double-crediting.
-5. Firestore **user** document: **`credits`** and **`plan`** updated; **`payments`** row stores metadata including `creditsAfter` / `planAfter`.
+5. Firestore **user** document: **`credits`** and **`plan`** updated when applicable (**`free_test`** adds **0 credits**); **`payments`** row stores metadata including `creditsAfter` / `planAfter`.
 
 ---
 
@@ -136,7 +136,7 @@ This is the **total LLM token count** for the audit (sum of all stages). Legacy 
 | `NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS` | Signup credits (default 20) |
 | `ROAST_CREDITS_PER_GENERATION` | Credits debited per authenticated roast (default = loader step count; use `1` for single credit) |
 | `PLAN_PRO_AUDIT_CREDITS`, `PLAN_AGENCY_AUDIT_CREDITS` | Credits added on purchase |
-| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Billing |
+| `DODO_PAYMENTS_API_KEY`, `DODO_PAYMENTS_ENVIRONMENT` (`test_mode` / `live_mode`), `DODO_PRODUCT_PRO_ID`, `DODO_PRODUCT_AGENCY_PACK_ID`, `DODO_PRODUCT_FREE_TEST_ID` | Billing |
 | `NEXT_PUBLIC_PREVIEW_ROAST_USES_CREDITS` | Whether landing preview consumes credits |
 | `PAGESPEED_API_KEY` | Optional performance block |
 

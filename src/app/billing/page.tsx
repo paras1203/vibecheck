@@ -1,7 +1,7 @@
 "use client";
 
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,27 +9,23 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { useRequireAuth } from "@/hooks/use-require-auth";
 import { toast } from "sonner";
-import { Zap } from "lucide-react";
+import { Zap, Minus, Plus } from "lucide-react";
 import { IconFrame } from "@/components/ui/icon-frame";
-import { openRazorpayCheckout } from "@/components/razorpay-open-checkout";
-import { formatCreditsBalance } from "@/lib/credits-balance-display";
-
-interface PaymentPlan {
-  id: "pro" | "agency";
-  name: string;
-  /** USD, whole dollars (display). */
-  priceUsd: number;
-  /** Primary anchor (e.g. $79 list for 1 credit; 5×$79 for bundle). */
-  listPriceUsd?: number;
-  /** Second struck-through anchor (agency: 5× checkout single). */
-  secondaryListPriceUsd?: number;
-  credits: number;
-  cornerBadge: string;
-  discountLabel: string;
-  discountLabelSecondary?: string;
-  creditsLabel: string;
-  priceSub?: string;
-}
+import {
+  redirectToDodoCheckout,
+  verifyDodoPaymentReturn,
+} from "@/components/dodo-open-checkout";
+import { creditsBalanceTitle, formatCreditsBalance } from "@/lib/credits-balance-display";
+import {
+  AGENCY_PACK_CREDITS,
+  CHECKOUT_AGENCY_PACK_USD,
+  CHECKOUT_SINGLE_USD,
+  LIST_AGENCY_PACK_USD,
+  LIST_SINGLE_USD,
+  normalizeCheckoutQty,
+  type BillingCheckoutPlanId,
+  type PaidPlanId,
+} from "@/lib/billing-plans";
 
 function formatUsdWhole(n: number) {
   return n.toLocaleString("en-US", {
@@ -40,50 +36,86 @@ function formatUsdWhole(n: number) {
   });
 }
 
-const LIST_SINGLE_USD = 79;
-const CHECKOUT_SINGLE_USD = 19;
-const BUNDLE_CREDITS = 5;
-const BUNDLE_USD = 59;
-const bundleListPrimary = LIST_SINGLE_USD * BUNDLE_CREDITS;
-const bundleListSecondary = CHECKOUT_SINGLE_USD * BUNDLE_CREDITS;
+function StepperRow(props: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  onChange: (next: number) => void;
+}) {
+  const { label, value, min, max, onChange } = props;
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-8"
+          aria-label="Decrease quantity"
+          disabled={value <= min}
+          onClick={() => onChange(Math.max(min, value - 1))}
+        >
+          <Minus className="size-3.5" />
+        </Button>
+        <span className="min-w-8 text-center font-mono text-sm tabular-nums">{value}</span>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-8"
+          aria-label="Increase quantity"
+          disabled={value >= max}
+          onClick={() => onChange(Math.min(max, value + 1))}
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
-const paymentPlans: PaymentPlan[] = [
-  {
-    id: "pro",
-    name: "Pro Pack",
-    priceUsd: CHECKOUT_SINGLE_USD,
-    listPriceUsd: LIST_SINGLE_USD,
-    credits: 1,
-    cornerBadge: "Single credit",
-    discountLabel: `Save ${formatUsdWhole(LIST_SINGLE_USD - CHECKOUT_SINGLE_USD)} vs ${formatUsdWhole(LIST_SINGLE_USD)} list (~${Math.round(((LIST_SINGLE_USD - CHECKOUT_SINGLE_USD) / LIST_SINGLE_USD) * 100)}% off).`,
-    creditsLabel: "1 Advanced Roast Credit",
-  },
-  {
-    id: "agency",
-    name: "Agency Pack",
-    priceUsd: BUNDLE_USD,
-    listPriceUsd: bundleListPrimary,
-    secondaryListPriceUsd: bundleListSecondary,
-    credits: BUNDLE_CREDITS,
-    cornerBadge: "Best value",
-    discountLabel: `Save ${formatUsdWhole(bundleListPrimary - BUNDLE_USD)} vs five at ${formatUsdWhole(LIST_SINGLE_USD)} list each (~${Math.round(((bundleListPrimary - BUNDLE_USD) / bundleListPrimary) * 100)}% off list).`,
-    discountLabelSecondary: `Save another ${formatUsdWhole(bundleListSecondary - BUNDLE_USD)} vs five × ${formatUsdWhole(CHECKOUT_SINGLE_USD)} single-credit checkouts (~${Math.round(((bundleListSecondary - BUNDLE_USD) / bundleListSecondary) * 100)}% off that stack).`,
-    creditsLabel: "5 Advanced Roast Credits",
-    priceSub: `≈ ${formatUsdWhole(BUNDLE_USD / BUNDLE_CREDITS)} per credit`,
-  },
-];
+interface PlanCardDef {
+  id: PaidPlanId;
+  title: string;
+  listPrimary: number;
+  price: number;
+  /** Subline under totals (agency per-credit). */
+  priceSub?: string;
+  discountLines: string[];
+  creditsCaption: string;
+  buttonLabel: string;
+  accent?: boolean;
+}
+
+const PRO_SAVE_EACH = LIST_SINGLE_USD - CHECKOUT_SINGLE_USD;
+const AGENCY_SAVE_EACH = LIST_AGENCY_PACK_USD - CHECKOUT_AGENCY_PACK_USD;
 
 function BillingPageContent() {
-  const { user, updateCreditsAndPlan, refreshProfile } = useAuth();
+  const { user, updateCreditsAndPlan, firebaseUser } = useAuth();
+  const router = useRouter();
   const isAuthenticated = useRequireAuth();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
+  const [proUnits, setProUnits] = useState(1);
+  const [agencyPacks, setAgencyPacks] = useState(1);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
   const paidToastRef = useRef(false);
 
   useEffect(() => {
     const plan = searchParams.get("plan");
-    if (plan !== "pro" && plan !== "agency") return;
+    const qtyRaw = searchParams.get("qty");
+    if (!qtyRaw) return;
+    const n = parseInt(qtyRaw, 10);
+    if (!Number.isFinite(n)) return;
+    if (plan === "pro") setProUnits(normalizeCheckoutQty("pro", n));
+    if (plan === "agency") setAgencyPacks(normalizeCheckoutQty("agency", n));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const plan = searchParams.get("plan");
+    if (plan !== "pro" && plan !== "agency" && plan !== "free_test") return;
     const t = window.setTimeout(() => {
       highlightedRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 300);
@@ -96,59 +128,141 @@ function BillingPageContent() {
     toast.success("Payment complete", { description: "Your credits are updated." });
   }, [searchParams]);
 
+  useEffect(() => {
+    const paymentId = searchParams.get("payment_id");
+    const status = searchParams.get("status");
+    if (!paymentId || status !== "succeeded" || !firebaseUser || !user) return;
+
+    const dedupeKey = `dodo_verify_${paymentId}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(dedupeKey)) {
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await firebaseUser.getIdToken();
+        const result = await verifyDodoPaymentReturn(paymentId, token);
+        if (cancelled) return;
+        if (typeof sessionStorage !== "undefined") sessionStorage.setItem(dedupeKey, "1");
+        updateCreditsAndPlan(result.credits, result.plan);
+        router.replace("/billing?paid=1");
+      } catch (err) {
+        console.error("[billing] Dodo verify:", err);
+        toast.error("Could not verify payment", {
+          description:
+            err instanceof Error ? err.message : "Confirm in dashboard or retry from Billing.",
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firebaseUser, router, searchParams, updateCreditsAndPlan, user]);
+
   const runCheckout = useCallback(
-    async (planId: "pro" | "agency") => {
-      if (!user) {
+    async (planId: BillingCheckoutPlanId, quantity?: number) => {
+      if (!firebaseUser) {
         toast.error("Please log in to purchase credits");
         return;
       }
       setLoading(planId);
       try {
-        const result = await openRazorpayCheckout(
-          planId,
-          user.uid,
-          user.email,
-          user.displayName
-        );
-        const credits = Number(result.credits);
-        updateCreditsAndPlan(Number.isFinite(credits) ? credits : user.credits, result.plan);
-        await refreshProfile();
+        const token = await firebaseUser.getIdToken();
+        await redirectToDodoCheckout(planId, token, quantity);
       } catch (error) {
-        if (error instanceof Error && error.message === "CLOSED") {
-          toast.message("Checkout closed", {
-            description: "You can try again when you're ready.",
-          });
-        } else {
-          console.error("Payment error:", error);
-          toast.error("Payment failed", {
-            description: error instanceof Error ? error.message : "Unknown error",
-          });
-        }
+        console.error("[billing] Checkout:", error);
+        toast.error("Checkout failed", {
+          description:
+            error instanceof Error ? error.message : "Unexpected error opening checkout.",
+        });
       } finally {
         setLoading(null);
       }
     },
-    [user, updateCreditsAndPlan, refreshProfile]
+    [firebaseUser]
   );
 
   useEffect(() => {
-    if (!user) return;
-    if (searchParams.get("checkout") !== "razorpay") return;
-    const plan = searchParams.get("plan");
-    if (plan !== "pro" && plan !== "agency") return;
-    const dedupeKey = `rzp_billing_auto_${plan}`;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(dedupeKey)) return;
-    sessionStorage.setItem(dedupeKey, "1");
-    void runCheckout(plan);
-  }, [user, searchParams, runCheckout]);
+    const paymentHold = Boolean(
+      searchParams.get("payment_id") && searchParams.get("status") === "succeeded"
+    );
+    if (paymentHold) return;
+    if (!user || !firebaseUser) return;
+    if (searchParams.get("checkout") !== "dodo") return;
+
+    const planRaw = searchParams.get("plan");
+    const plan: BillingCheckoutPlanId | null =
+      planRaw === "pro" || planRaw === "agency" || planRaw === "free_test" ? planRaw : null;
+    if (!plan) return;
+
+    const openKey = `dodo_billing_auto_${plan}_${searchParams.get("qty") ?? "default"}`;
+    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(openKey)) {
+      return;
+    }
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.setItem(openKey, "1");
+    }
+
+    const qtyRaw = searchParams.get("qty");
+    const qtyResolved =
+      plan === "free_test"
+        ? undefined
+        : plan === "pro"
+          ? normalizeCheckoutQty("pro", qtyRaw ?? 1)
+          : normalizeCheckoutQty("agency", qtyRaw ?? 1);
+
+    void runCheckout(plan, qtyResolved);
+  }, [firebaseUser, runCheckout, searchParams, user]);
 
   if (!isAuthenticated) {
     return null;
   }
 
-  const handleBuy = (plan: PaymentPlan) => {
-    void runCheckout(plan.id);
-  };
+  const proListTotal = LIST_SINGLE_USD * proUnits;
+  const proPriceTotal = CHECKOUT_SINGLE_USD * proUnits;
+  const proSaveTotal = PRO_SAVE_EACH * proUnits;
+
+  const agencyListTotal = LIST_AGENCY_PACK_USD * agencyPacks;
+  const agencyPriceTotal = CHECKOUT_AGENCY_PACK_USD * agencyPacks;
+  const agencyCredits = AGENCY_PACK_CREDITS * agencyPacks;
+  const agencyPerCredit = agencyPriceTotal / agencyCredits;
+  const agencySaveTotal = AGENCY_SAVE_EACH * agencyPacks;
+
+  const agencyPerCreditLabel = agencyPerCredit.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+  const cardPlans: PlanCardDef[] = [
+    {
+      id: "pro",
+      title: "Pro Plan",
+      listPrimary: proListTotal,
+      price: proPriceTotal,
+      discountLines: [
+        `Save ${formatUsdWhole(proSaveTotal)} (${Math.round((PRO_SAVE_EACH / LIST_SINGLE_USD) * 100)}% off).`,
+      ],
+      creditsCaption: `${proUnits} Roast Credit${proUnits === 1 ? "" : "s"}`,
+      buttonLabel: "Buy Pro",
+      accent: true,
+    },
+    {
+      id: "agency",
+      title: "Agency Pack (Bundle)",
+      listPrimary: agencyListTotal,
+      price: agencyPriceTotal,
+      priceSub: `≈ ${agencyPerCreditLabel} per credit`,
+      discountLines: [
+        `Save ${formatUsdWhole(agencySaveTotal)} (~${Math.round((AGENCY_SAVE_EACH / LIST_AGENCY_PACK_USD) * 100)}%).`,
+      ],
+      creditsCaption: `${agencyCredits} Advanced Roast Credit${agencyCredits === 1 ? "" : "s"}`,
+      buttonLabel: "Buy Agency",
+    },
+  ];
 
   return (
     <SidebarProvider
@@ -167,9 +281,8 @@ function BillingPageContent() {
                 Billing & Credits
               </h1>
               <p className="text-muted-foreground">
-                Purchase credits via Razorpay. Prices below are shown in USD for reference; the
-                payment window shows the amount in the currency your checkout is configured for
-                (often INR for India merchants).
+                Purchase credits through Dodo Payments. Prices are shown in USD; your checkout may
+                show tax or local currency depending on your card and region.
               </p>
             </div>
 
@@ -185,78 +298,86 @@ function BillingPageContent() {
                 </CardHeader>
                 <CardContent>
                   <div
-                    className="mb-2 font-mono text-4xl font-semibold tabular-nums text-primary"
-                    title={
-                      user.firestoreSynced
-                        ? undefined
-                        : "Balance could not be loaded from Firestore."
-                    }
+                    className="font-mono text-4xl font-semibold tabular-nums text-primary"
+                    title={creditsBalanceTitle(user)}
                   >
                     {formatCreditsBalance(user)}
                   </div>
-                  <p className="text-sm text-muted-foreground">Available roast credits</p>
                 </CardContent>
               </Card>
             )}
 
-            <div className="grid md:grid-cols-2 gap-6">
-              {paymentPlans.map((plan) => (
+            <div className="grid gap-6 md:grid-cols-2">
+              {cardPlans.map((plan) => (
                 <Card
                   key={plan.id}
                   ref={plan.id === searchParams.get("plan") ? highlightedRef : undefined}
                   data-plan={plan.id}
-                  className={`relative overflow-hidden ${
+                  className={`relative flex flex-col overflow-hidden ${
                     searchParams.get("plan") === plan.id
                       ? "ring-2 ring-primary/50 shadow-surface-sm"
                       : ""
-                  } ${plan.id === "pro" ? "border-primary/35 ring-1 ring-primary/20" : ""}`}
+                  } ${plan.accent ? "border-primary/35 ring-1 ring-primary/20" : ""}`}
                 >
                   <div className="absolute right-3 top-3 rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground">
-                    {plan.cornerBadge}
+                    {plan.id === "pro" ? "Per credit" : "Best value"}
                   </div>
                   <CardHeader className="pr-24">
-                    <CardTitle>{plan.name}</CardTitle>
+                    <CardTitle>{plan.title}</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2.5 text-sm font-medium leading-snug text-foreground">
-                      Buy extra roast credits at the same launch pricing as the homepage — top up any
-                      time.
-                    </div>
-                    <div>
-                      <div className="mb-1 flex flex-wrap items-baseline gap-2">
-                        {plan.listPriceUsd != null ? (
-                          <span className="font-mono text-2xl tabular-nums text-muted-foreground line-through">
-                            {formatUsdWhole(plan.listPriceUsd)}
-                          </span>
-                        ) : null}
-                        {plan.secondaryListPriceUsd != null ? (
-                          <span className="font-mono text-xl tabular-nums text-muted-foreground/80 line-through">
-                            {formatUsdWhole(plan.secondaryListPriceUsd)}
-                          </span>
-                        ) : null}
+                  <CardContent className="flex flex-1 flex-col gap-0 p-6 pt-0">
+                    <div className="min-h-0 flex-1 space-y-3">
+                      <div className="flex flex-wrap items-baseline gap-2">
+                        <span className="font-mono text-2xl tabular-nums text-muted-foreground line-through">
+                          {formatUsdWhole(plan.listPrimary)}
+                        </span>
                         <span className="font-mono text-3xl font-semibold tabular-nums text-foreground">
-                          {formatUsdWhole(plan.priceUsd)}
+                          {formatUsdWhole(plan.price)}
                         </span>
                         {plan.priceSub ? (
                           <span className="text-sm text-muted-foreground">{plan.priceSub}</span>
                         ) : null}
                       </div>
-                      {plan.discountLabel ? (
-                        <p className="text-sm font-semibold text-primary">{plan.discountLabel}</p>
-                      ) : null}
-                      {plan.discountLabelSecondary ? (
-                        <p className="text-sm font-semibold text-primary">{plan.discountLabelSecondary}</p>
-                      ) : null}
-                      <p className="mt-1 text-sm text-muted-foreground">{plan.creditsLabel}</p>
+                      {plan.discountLines.map((line) => (
+                        <p key={line} className="text-sm font-semibold text-primary">
+                          {line}
+                        </p>
+                      ))}
+                      <p className="text-sm text-muted-foreground">{plan.creditsCaption}</p>
                     </div>
-                    <Button
-                      onClick={() => handleBuy(plan)}
-                      disabled={loading === plan.id || !user}
-                      className="w-full"
-                      size="lg"
-                    >
-                      {loading === plan.id ? "Opening Razorpay…" : "Buy with Razorpay"}
-                    </Button>
+
+                    <div className="mt-auto space-y-3 border-t border-border pt-4">
+                      {plan.id === "pro" ? (
+                        <StepperRow
+                          label="Credits (+1 each)"
+                          value={proUnits}
+                          min={1}
+                          max={50}
+                          onChange={(n) => setProUnits(normalizeCheckoutQty("pro", n))}
+                        />
+                      ) : (
+                        <StepperRow
+                          label="Packs (+5 credits each)"
+                          value={agencyPacks}
+                          min={1}
+                          max={20}
+                          onChange={(n) => setAgencyPacks(normalizeCheckoutQty("agency", n))}
+                        />
+                      )}
+                      <Button
+                        onClick={() =>
+                          void runCheckout(
+                            plan.id,
+                            plan.id === "pro" ? proUnits : agencyPacks
+                          )
+                        }
+                        disabled={loading === plan.id || !firebaseUser}
+                        className="w-full"
+                        size="lg"
+                      >
+                        {loading === plan.id ? "Opening checkout…" : plan.buttonLabel}
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
