@@ -507,3 +507,18 @@ PDF route implementation (if product requires).
 - `Navbar` `tone`: adds `c2` | `c3` for token-aligned concept shells.
 
 **Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-07 (PM) - Google Cloud Run: Docker + Next standalone
+
+### 1. Directory / deploy artifact (delta)
+- Root `Dockerfile` — multi-stage build on `node:20-bookworm-slim`, runs `node server.js` from `.next/standalone`, non-root `nextjs` user, `HOSTNAME=0.0.0.0`, apt libs for headless Chromium.
+- `.dockerignore` — excludes `node_modules`, `.next`, `.git`, `.env*`, `.cursor`.
+- `next.config.ts` — `output: "standalone"` for container-friendly output.
+
+### 3. Workflows (delta)
+- Same App Router and API routes locally and on Cloud Run; set production env vars (Firebase, Gemini, Dodo, etc.) on the Cloud Run service or Secret Manager.
+- `src/lib/should-use-bundled-chromium.ts` — shared rule for `@sparticuz/chromium` in production (e.g. Cloud Run without `VERCEL`).
+
+**Confirmed:** This structure log was appended.

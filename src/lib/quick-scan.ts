@@ -1,5 +1,6 @@
 import chromium from "@sparticuz/chromium";
 import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 import { DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD } from "./insight-layers";
 import { getPuppeteerWithStealth } from "./screenshot";
 
@@ -255,7 +256,7 @@ export async function quickScan(url: string): Promise<{
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     };
 
-    if (process.env.NODE_ENV !== "development" || process.env.VERCEL) {
+    if (shouldUseBundledChromium()) {
       launchOptions.args = [...chromium.args];
       launchOptions.executablePath = await resolveChromiumExecutablePath();
     }

@@ -22,6 +22,7 @@ const outputFileTracingIncludes = Object.fromEntries(
 );
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   outputFileTracingIncludes,
   // Exclude puppeteer and related packages from bundling
   // These are server-side only and use CommonJS, which causes issues with Turbopack

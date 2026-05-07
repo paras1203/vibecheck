@@ -1,9 +1,7 @@
 import chromium from "@sparticuz/chromium";
 import type { Browser, Page } from "puppeteer-core";
 import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
-
-// Detect if we're in a local development environment
-const isLocalDev = process.env.NODE_ENV === "development" || !process.env.VERCEL;
+import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 
 /**
  * Auto-scrolls the page to trigger lazy-loaded images and content
@@ -102,7 +100,7 @@ export async function getPuppeteerWithStealth() {
   const StealthPlugin = StealthPluginModule.default || StealthPluginModule;
   const AnonymizeUAPlugin = AnonymizeUAPluginModule.default || AnonymizeUAPluginModule;
 
-  if (!isLocalDev) {
+  if (shouldUseBundledChromium()) {
     await import("puppeteer-core");
   }
 
@@ -143,7 +141,7 @@ export async function takeScreenshot(url: string, device: 'desktop' | 'mobile' =
       defaultViewport: { width: viewportWidth, height: viewportHeight },
     };
 
-    if (!isLocalDev) {
+    if (shouldUseBundledChromium()) {
       // Production/serverless: use @sparticuz/chromium
       launchOptions.args = [
         ...chromium.args,

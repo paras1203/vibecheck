@@ -1,3 +1,14 @@
+## 2026-05-07 - Google Cloud Run: Docker + Next standalone (plan execution)
+
+**Category:** Architecture
+
+**Instruction:**
+> Implement attached plan: `output: "standalone"` in `next.config.ts`; root `.dockerignore` and multi-stage `Dockerfile` (bookworm-slim, non-root user, standalone + static + public); unify `@sparticuz/chromium` usage via shared helper for Cloud Run (no `VERCEL`); optional `.env.example` Dodo product id comments; verify build; do not edit the plan file.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
 ## 2026-05-07 - Landing C1–C3 concepts (plan)
 
 **Category:** Feature Request / Architecture

@@ -1,6 +1,7 @@
 import chromium from "@sparticuz/chromium";
 import type { Browser } from "puppeteer-core";
 import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 import { getPuppeteerWithStealth } from "./screenshot";
 
 /**
@@ -95,7 +96,7 @@ export async function captureScreenshotFromUrl(
         args: stealthArgs,
       };
 
-      if (process.env.NODE_ENV !== "development" || process.env.VERCEL) {
+      if (shouldUseBundledChromium()) {
         launchOptions.args = [...chromium.args, ...stealthArgs];
         launchOptions.executablePath = await resolveChromiumExecutablePath();
       }

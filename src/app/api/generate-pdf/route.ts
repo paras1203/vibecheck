@@ -3,10 +3,9 @@ import chromium from "@sparticuz/chromium";
 import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
 import { getPuppeteerWithStealth } from "@/lib/screenshot";
 import { generateFreeRoastCertificateHTML, generatePaidAgencyReportHTML } from "@/lib/pdf-templates";
+import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 
 export const maxDuration = 120;
-
-const isLocalDev = process.env.NODE_ENV === "development" || !process.env.VERCEL;
 
 export async function POST(request: NextRequest) {
   let browser = null;
@@ -46,7 +45,7 @@ export async function POST(request: NextRequest) {
       defaultViewport: { width: 1200, height: 1600 },
     };
 
-    if (!isLocalDev) {
+    if (shouldUseBundledChromium()) {
       launchOptions.args = [
         ...chromium.args,
         "--disable-blink-features=AutomationControlled",

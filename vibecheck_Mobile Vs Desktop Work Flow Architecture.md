@@ -116,6 +116,9 @@ Same as other concept landings: `Navbar` `navMode="concept"` with desktop anchor
 ### 1.4 What Is Duplicated / Divergent
 Visual-only deltas (`--lv-c1-*`, `--lv-c2-*`, `--lv-c3-*`); roast data flow unchanged.
 
+### 1.5 Deployment (shared mobile/desktop)
+Optional **Google Cloud Run** via root `Dockerfile` (Next.js `standalone`); same routes and responsive behavior; configure service env vars for APIs that use Puppeteer/Chromium.
+
 ## 2. Workflow Differences (Current)
 ### 2.1 URL → report
 Identical API, auth, and credits across `/` and all `/v/*`.

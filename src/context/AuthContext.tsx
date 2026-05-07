@@ -26,7 +26,11 @@ import {
   signInWithEmailLink,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import {
+  getFirebaseAuth,
+  getFirestoreClient,
+  isFirebaseClientConfigured,
+} from "@/lib/firebase";
 import { mergeLegacyRoastHistoryIntoUser } from "@/lib/roast-history";
 import { coerceUserCreditsFromDocument, newUserCreditsDefault } from "@/lib/credits-config";
 
@@ -113,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const syncUserWithFirestore = useCallback(async (firebaseUser: FirebaseUser) => {
     try {
       setIsSyncing(true);
-      const userRef = doc(db, "users", firebaseUser.uid);
+      const userRef = doc(getFirestoreClient(), "users", firebaseUser.uid);
       const userSnap = await getDoc(userRef);
 
       if (userSnap.exists()) {
@@ -186,6 +190,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setIsSyncing(false);
 
+    if (!isFirebaseClientConfigured()) {
+      setFirebaseUser(null);
+      setUser(null);
+      authBootstrappedRef.current = true;
+      setAuthResolved(true);
+      setLoading(false);
+      setIsSyncing(false);
+      return;
+    }
+
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
       unsubscribeRef.current = null;
@@ -196,13 +210,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        await getRedirectResult(auth);
+        await getRedirectResult(getFirebaseAuth());
       } catch (e) {
         console.error("Google redirect sign-in error:", e);
       }
       if (cancelled) return;
 
-      unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (fbUser) => {
         if (cancelled) return;
         if (!authBootstrappedRef.current) {
           authBootstrappedRef.current = true;
@@ -255,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsSyncing(true);
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(getFirebaseAuth(), provider);
     } catch (error: unknown) {
       const code =
         error &&
@@ -266,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : "";
 
       if (code === "auth/popup-blocked") {
-        await signInWithRedirect(auth, provider);
+        await signInWithRedirect(getFirebaseAuth(), provider);
         return;
       }
 
@@ -306,7 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleEmailSignIn = async (email: string, password: string) => {
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      await signInWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
     } catch (error: unknown) {
       throw mapAuthError(error);
     }
@@ -317,7 +331,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("Password must be at least 6 characters.");
     }
     try {
-      await createUserWithEmailAndPassword(auth, email.trim(), password);
+      await createUserWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
     } catch (error: unknown) {
       throw mapAuthError(error);
     }
@@ -338,12 +352,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       url: continueUrl,
       handleCodeInApp: true,
     };
-    await sendSignInLinkToEmail(auth, trimmed, actionCodeSettings);
+    await sendSignInLinkToEmail(getFirebaseAuth(), trimmed, actionCodeSettings);
     window.localStorage.setItem("emailForSignIn", trimmed);
   };
 
   const completeEmailLinkSignInIfPresent = async (href: string): Promise<boolean> => {
-    if (!isSignInWithEmailLink(auth, href)) {
+    if (!isSignInWithEmailLink(getFirebaseAuth(), href)) {
       return false;
     }
     let email = typeof window !== "undefined" ? window.localStorage.getItem("emailForSignIn") : null;
@@ -353,7 +367,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!email) {
       throw new Error("Email is required to complete sign-in.");
     }
-    await signInWithEmailLink(auth, email.trim(), href);
+    await signInWithEmailLink(getFirebaseAuth(), email.trim(), href);
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("emailForSignIn");
     }
@@ -362,7 +376,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      await signOut(getFirebaseAuth());
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -396,7 +410,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!trimmed) {
       throw new Error("Name is required.");
     }
-    const fb = auth.currentUser;
+    const fb = getFirebaseAuth().currentUser;
     if (!fb) {
       throw new Error("Not signed in.");
     }
@@ -409,11 +423,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!trimmed) {
       throw new Error("Email is required.");
     }
-    await sendPasswordResetEmail(auth, trimmed);
+    await sendPasswordResetEmail(getFirebaseAuth(), trimmed);
   };
 
   const refreshProfile = useCallback(async () => {
-    const fb = auth.currentUser;
+    const fb = getFirebaseAuth().currentUser;
     if (!fb) return;
     await syncUserWithFirestore(fb);
   }, [syncUserWithFirestore]);
