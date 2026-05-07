@@ -56,6 +56,8 @@ import { IconFrame } from "@/components/ui/icon-frame";
 import {
   generateAuditReportHTML,
   type AuditReportPayload,
+  REPORT_CATEGORY_SUB,
+  REPORT_ELEMENT_SUB,
 } from "@/lib/report-html";
 import { upsertRoastHistory } from "@/lib/roast-history";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -67,14 +69,19 @@ import {
   scrollDepthNarrative,
 } from "@/lib/report-ui";
 import {
+  meanRadarSiteScore,
+  verdictLabelFromSiteScore,
+} from "@/lib/site-score";
+import {
   mergeRoastHeroFromSession,
   persistRoastForClientNavigation,
 } from "@/lib/roast-storage";
-import { AttentionHeatmapPanel } from "@/components/roast/attention-heatmap-panel";
+import { FirstViewportSnapshotPanel } from "@/components/roast/first-viewport-snapshot-panel";
 import {
   FULL_DIAGNOSTIC_UPGRADE_HOOK,
   INLINE_UPGRADE_NUDGE,
   PRO_UPGRADE_STRIP,
+  stripDisplayMarkdown,
   stripNarrativeSegmentLabels,
 } from "@/lib/report-copy";
 import {
@@ -103,12 +110,17 @@ import { ScrollOfDeathCard } from "@/components/roast/scroll-of-death-card";
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
 import { buildScrollEffectiveness } from "@/lib/scroll-effectiveness-from-audit";
+import { costOfInactionHeadlineClass } from "@/lib/revenue-scenario-accents";
 import {
   RADAR_AXIS_EXPLANATIONS,
   RADAR_AXIS_LABELS,
   scoreForRadarAxis,
   radarScoreValueClass,
 } from "@/lib/radar-axis-scores";
+import {
+  categoriesFromDetailedAudit,
+  type DetailedAuditRow,
+} from "@/lib/report-category-score";
 import type {
   PerformanceGeminiSummary,
   ScrollEffectiveness,
@@ -190,6 +202,7 @@ interface RoastData {
   performanceGemini?: PerformanceGeminiSummary | null;
   trafficEstimate?: TrafficEstimate;
   scrollEffectiveness?: ScrollEffectiveness;
+  device?: "desktop" | "mobile";
 }
 
 function categoryTabIcon(name: string): LucideIcon {
@@ -202,16 +215,30 @@ function categoryTabIcon(name: string): LucideIcon {
   return LayoutGrid;
 }
 
+function roastSupplementHasContent(
+  se: ScrollEffectiveness | null | undefined,
+  te: TrafficEstimate | null | undefined
+): boolean {
+  if (
+    se &&
+    (String(se.situation || "").trim() ||
+      String(se.action || "").trim() ||
+      (se.evidenceBullets?.length ?? 0) > 0)
+  ) {
+    return true;
+  }
+  if (te?.note?.trim()) return true;
+  return false;
+}
+
 function auditStatusBadgeVariant(
   status: string
 ): "success" | "secondary" | "warning" | "destructive" | "outline" {
   switch (status) {
     case "Excellent":
-      return "success";
     case "Good":
-      return "secondary";
+      return "success";
     case "Satisfactory":
-      return "outline";
     case "Needs Improvement":
       return "warning";
     case "Failed":
@@ -277,7 +304,13 @@ export default function RoastPage() {
           }
         }
 
-        async function ensureHeroScreenshot(data: RoastData): Promise<RoastData> {
+        const resolveDevice = (data: RoastData): "desktop" | "mobile" =>
+          data.device === "mobile" ? "mobile" : "desktop";
+
+        async function ensureHeroScreenshot(
+          data: RoastData,
+          dev: "desktop" | "mobile"
+        ): Promise<RoastData> {
           if (data.heroScreenshot && String(data.heroScreenshot).trim()) {
             return data;
           }
@@ -287,7 +320,7 @@ export default function RoastPage() {
             const res = await fetch("/api/roast/hero", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: u, device: "desktop" }),
+              body: JSON.stringify({ url: u, device: dev }),
             });
             if (!res.ok) return data;
             const j = (await res.json()) as { heroScreenshot?: string | null };
@@ -301,49 +334,46 @@ export default function RoastPage() {
           return data;
         }
 
-        const heroMissing =
-          !cached?.heroScreenshot ||
-          !String(cached.heroScreenshot).trim();
-
-        if (cached && !heroMissing) {
-          setRoastData(cached);
-          setLoading(false);
-          return;
-        }
-
-        if (cached && heroMissing) {
-          const withHero = await ensureHeroScreenshot(cached);
-          setRoastData(withHero);
-          persistRoastForClientNavigation(id, withHero as AuditReportPayload);
-          setLoading(false);
-          return;
-        }
-
         try {
           const response = await fetch(`/api/roast/${id}`);
           if (response.ok) {
-            const data = (await response.json()) as RoastData;
+            const serverData = (await response.json()) as RoastData;
             const mergedRaw =
               cached != null
                 ? {
                     ...cached,
-                    ...data,
-                    heroScreenshot: data.heroScreenshot ?? cached.heroScreenshot,
+                    ...serverData,
+                    heroScreenshot:
+                      serverData.heroScreenshot && String(serverData.heroScreenshot).trim()
+                        ? serverData.heroScreenshot
+                        : cached.heroScreenshot,
                   }
-                : data;
+                : serverData;
             const merged = mergeRoastHeroFromSession(
               id,
               mergedRaw as AuditReportPayload
             ) as RoastData;
-            const withHero = await ensureHeroScreenshot(merged);
+            const withHero = await ensureHeroScreenshot(merged, resolveDevice(merged));
             setRoastData(withHero);
             persistRoastForClientNavigation(id, withHero as AuditReportPayload);
-          } else {
-            throw new Error("Roast not found");
+            return;
           }
         } catch {
-          throw new Error("Failed to load roast");
+          /* fall through to cache-only */
         }
+
+        if (cached) {
+          const merged = mergeRoastHeroFromSession(
+            id,
+            cached as AuditReportPayload
+          ) as RoastData;
+          const withHero = await ensureHeroScreenshot(merged, resolveDevice(merged));
+          setRoastData(withHero);
+          persistRoastForClientNavigation(id, withHero as AuditReportPayload);
+          return;
+        }
+
+        throw new Error("Roast not found");
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load roast");
       } finally {
@@ -417,6 +447,7 @@ export default function RoastPage() {
           roastData,
           isPaid: hasFullReportAccess,
           url: typeof window !== "undefined" ? window.location.origin : "https://siteroast.ai",
+          calculator: { traffic, price, industry },
         }),
       });
 
@@ -519,8 +550,16 @@ export default function RoastPage() {
   }
 
   // Extract data (exact from Python)
-  const overallScore = roastData.overall_score || roastData.overview?.overallScore || 50;
   const radarScores = roastData.radar_scores || roastData.radarMetrics || {};
+  const storedOverall =
+    Number(roastData.overall_score ?? roastData.overview?.overallScore) || 50;
+  const hasRadarGrid =
+    typeof radarScores === "object" &&
+    radarScores !== null &&
+    Object.keys(radarScores).length > 0;
+  const overallScore = hasRadarGrid
+    ? meanRadarSiteScore(radarScores as Record<string, unknown>)
+    : storedOverall;
   const quickWins = ensureQuickWinsUpToFour(
     roastData.quickWins || roastData.quick_wins,
     roastData.audit_items
@@ -534,18 +573,17 @@ export default function RoastPage() {
   const verdict = roastData.verdict || "";
   const closer = roastData.closer || "";
 
-  const hasDetailedRoastSection = Boolean(roast || verdict || closer);
+  const execPara = (t: string) => stripDisplayMarkdown(stripNarrativeSegmentLabels(t));
+
+  const hasDetailedRoastSection = Boolean(
+    briefSummary.trim() || roast || verdict || closer
+  );
   const auditItems = partitionLegalComplianceAuditLast(roastData.audit_items || []);
 
-  const CATEGORY_TAB_ORDER = [
-    "UX & Layout",
-    "Conversion & Funnel",
-    "Copy & Messaging",
-    "Visuals & Brand",
-    "Trust & Credibility",
-    "Speed & Technical Health",
-  ] as const;
-  
+  const categories = categoriesFromDetailedAudit(
+    detailedAudit as unknown as Record<string, DetailedAuditRow[]>
+  );
+
   // ROI Calculator data (exact from Python lines 2163-2165, 4772-4775)
   const pageHeight = roastData.pageHeight || 3000;
   const scrollHelp = scrollDepthNarrative(roastData.audited_url, pageHeight);
@@ -553,99 +591,10 @@ export default function RoastPage() {
     roastData.scrollEffectiveness ??
     buildScrollEffectiveness(roastData, roastData.audited_url || "", pageHeight, 800);
 
-  const getVerdictText = (score: number) => {
-    if (score < 50) return "CRITICAL CONDITION";
-    if (score < 80) return "NEEDS OPTIMIZATION";
-    return "EXCELLENT";
+  const radarForVerdict = {
+    ...(radarScores as Record<string, unknown>),
+    ...(roastData.radarMetrics as Record<string, unknown> | undefined),
   };
-
-  // Build categories from detailedAudit (exact from Python lines 5165-5214)
-  const categoryNames: Record<string, string> = {
-    ux: "UX & Layout",
-    conversion: "Conversion & Funnel",
-    copy: "Copy & Messaging",
-    visuals: "Visuals & Brand",
-    trust: "Trust & Credibility",
-    speed: "Speed & Technical Health",
-  };
-
-  const categories: Array<{
-    name: string;
-    score: number;
-    verdict: string;
-    impact: string;
-    what_works: string;
-    what_failed: string;
-    fix_steps: string[];
-  }> = [];
-
-  if (detailedAudit && Object.keys(detailedAudit).length > 0) {
-    const statusPoints: Record<string, number> = {
-      Excellent: 95,
-      Good: 80,
-      Satisfactory: 60,
-      "Needs Improvement": 35,
-      Failed: 5,
-    };
-
-    for (const [catKey, items] of Object.entries(detailedAudit)) {
-      if (items && items.length > 0) {
-        const catName = categoryNames[catKey.toLowerCase()] || catKey;
-        const scores = items.map((item) =>
-          statusPoints[item.status || "Satisfactory"] || 60
-        );
-        const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-
-        const whatWorksItems = items.filter(
-          (item) => item.status === "Excellent" || item.status === "Good"
-        );
-        const whatFailedItems = items.filter(
-          (item) => item.status === "Failed" || item.status === "Needs Improvement"
-        );
-
-        const whatWorks = whatWorksItems
-          .slice(0, 3)
-          .map((item) => item.elementName || "")
-          .join("; ");
-        const whatFailed = whatFailedItems
-          .slice(0, 3)
-          .map((item) => item.elementName || "")
-          .join("; ");
-
-        const fixSteps: string[] = [];
-        for (const item of whatFailedItems.slice(0, 3)) {
-          const fix = item.fix || {};
-          if (typeof fix === "object" && fix !== null) {
-            const quickFix = fix.quickFix || "";
-            if (quickFix) {
-              fixSteps.push(`${item.elementName || "Item"}: ${quickFix}`);
-            }
-          } else if (fix) {
-            fixSteps.push(`${item.elementName || "Item"}: ${String(fix)}`);
-          }
-        }
-
-        const verdict =
-          avgScore < 60 ? "Needs Improvement" : avgScore < 80 ? "Good" : "Excellent";
-        const impact = whatFailedItems.length > 0 ? "High" : "Medium";
-
-        categories.push({
-          name: catName,
-          score: avgScore,
-          verdict,
-          impact,
-          what_works: whatWorks,
-          what_failed: whatFailed,
-          fix_steps: fixSteps,
-        });
-      }
-    }
-    categories.sort((a, b) => {
-      const ia = CATEGORY_TAB_ORDER.indexOf(a.name as (typeof CATEGORY_TAB_ORDER)[number]);
-      const ib = CATEGORY_TAB_ORDER.indexOf(b.name as (typeof CATEGORY_TAB_ORDER)[number]);
-      return (ia === -1 ? 100 : ia) - (ib === -1 ? 100 : ib);
-    });
-  }
 
   // Extract components from ROI Calculator for separate display
   const lift = 0.02;
@@ -772,13 +721,13 @@ export default function RoastPage() {
               <div>
                 <p className="text-caption mb-1.5 text-muted-foreground">Verdict</p>
                 <p className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
-                  {getVerdictText(overallScore)}
+                  {verdictLabelFromSiteScore(Math.round(overallScore), radarForVerdict)}
                 </p>
               </div>
               {briefSummary ? (
                 <div className="rounded-xl border border-border-muted bg-surface-2/40 p-5 md:p-6">
                   <p className="text-base leading-relaxed text-foreground whitespace-pre-wrap">
-                    {stripNarrativeSegmentLabels(briefSummary)}
+                    {execPara(briefSummary)}
                   </p>
                 </div>
               ) : null}
@@ -935,7 +884,7 @@ export default function RoastPage() {
           {!hasFullReportAccess ? (
             <FullReportUpgradePanel
               overallScore={overallScore}
-              verdictLabel={getVerdictText(overallScore)}
+              verdictLabel={verdictLabelFromSiteScore(Math.round(overallScore), radarForVerdict)}
               categoryTeasers={categoryTeaserNames}
               beforeSnippet={quickWins[0]?.problem ?? null}
               afterSnippet={quickWins[0]?.fix ?? null}
@@ -978,7 +927,7 @@ export default function RoastPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-1 flex-col justify-center pt-0">
-                <div className="mb-1 font-mono text-2xl font-semibold tabular-nums text-primary">
+                <div className={cn("mb-1 text-2xl font-semibold tabular-nums", costOfInactionHeadlineClass())}>
                   ${lostRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -1009,14 +958,16 @@ export default function RoastPage() {
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-muted-foreground">Top competitor</span>
-                    <span className="font-mono font-semibold tabular-nums text-primary">
+                    <span className="font-mono font-semibold tabular-nums text-amber-700 dark:text-amber-400">
                       {competitorTraffic.toLocaleString()}
                     </span>
                   </div>
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground">
                   Competitors get{" "}
-                  <span className="font-semibold text-primary">{multiplier.toFixed(1)}×</span> your traffic.
+                  <span className="font-semibold text-amber-700 dark:text-amber-400">
+                    {multiplier.toFixed(1)}×
+                  </span> your traffic.
                 </p>
               </CardContent>
             </Card>
@@ -1030,7 +981,7 @@ export default function RoastPage() {
             scrollEffectiveness={scrollResolved}
           />
 
-          <AttentionHeatmapPanel
+          <FirstViewportSnapshotPanel
             heroBase64={roastData.heroScreenshot}
             siteLabel={roastData.audited_url}
           />
@@ -1045,13 +996,28 @@ export default function RoastPage() {
               </CardHeader>
               <CardContent className="overflow-visible pb-8 pt-0">
                 <div className="space-y-8 rounded-lg border border-border bg-muted/30 p-6 md:p-8">
-                  {roast ? (
+                  {briefSummary.trim() ? (
                     <section className="min-w-0">
+                      <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
+                        Summary
+                      </h3>
+                      <p className="text-sm leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {execPara(briefSummary.trim())}
+                      </p>
+                    </section>
+                  ) : null}
+                  {roast ? (
+                    <section
+                      className={cn(
+                        "min-w-0",
+                        briefSummary.trim() && "border-t border-border-muted pt-8"
+                      )}
+                    >
                       <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
                         Analysis
                       </h3>
-                      <p className="text-base leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        {stripNarrativeSegmentLabels(roast)}
+                      <p className="text-sm leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {execPara(roast)}
                       </p>
                     </section>
                   ) : null}
@@ -1060,8 +1026,8 @@ export default function RoastPage() {
                       <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
                         Verdict
                       </h3>
-                      <p className="text-base leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        {stripNarrativeSegmentLabels(verdict)}
+                      <p className="text-sm leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {execPara(verdict)}
                       </p>
                     </section>
                   ) : null}
@@ -1070,8 +1036,8 @@ export default function RoastPage() {
                       <h3 className="mb-3 text-sm font-semibold tracking-tight text-foreground">
                         What to do next
                       </h3>
-                      <p className="text-base leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
-                        {stripNarrativeSegmentLabels(closer)}
+                      <p className="text-sm leading-relaxed text-card-foreground [overflow-wrap:anywhere] break-words whitespace-pre-wrap">
+                        {execPara(closer)}
                       </p>
                     </section>
                   ) : null}
@@ -1080,12 +1046,143 @@ export default function RoastPage() {
             </Card>
           ) : null}
 
-          {/* Element-by-element audit (above deep dive) */}
+          {categories.length > 0 ? (
+            <SectionHeader
+              title="Category deep dive"
+              description={REPORT_CATEGORY_SUB}
+              size="compact"
+            />
+          ) : null}
+
+          {/* Category deep dive (before element-by-element audit) */}
+          <Card>
+            <CardContent className="pt-6">
+              {categories.length > 0 ? (
+                <Tabs defaultValue={categories[0]?.name}>
+                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
+                    {categories.map((cat) => {
+                      const CatIcon = categoryTabIcon(cat.name);
+                      return (
+                        <TabsTrigger
+                          key={cat.name}
+                          value={cat.name}
+                          className="gap-1.5 text-xs sm:text-sm"
+                        >
+                          <CatIcon className="size-4 shrink-0 stroke-[1.5] opacity-80" />
+                          <span className="truncate">{cat.name}</span>
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                  {categories.map((cat) => (
+                    <TabsContent key={cat.name} value={cat.name} className="space-y-4">
+                      <div>
+                        <Badge variant={cat.impact === "High" ? "destructive" : "secondary"}>
+                          Impact: {cat.impact} {cat.impact === "High" ? "- Priority fix" : ""}
+                        </Badge>
+                        <p className="mt-2 text-sm">
+                          <strong>Score:</strong>{" "}
+                          <span
+                            className={cn(
+                              "font-mono font-semibold tabular-nums",
+                              radarScoreValueClass(cat.score)
+                            )}
+                          >
+                            {cat.score}
+                          </span>
+                          /100 | <strong>Verdict:</strong>{" "}
+                          <span className={radarScoreValueClass(cat.score)}>{cat.verdict}</span>
+                        </p>
+                      </div>
+                      {!hasFullReportAccess ? (
+                        <>
+                          <ul className="list-none space-y-1.5 text-sm text-muted-foreground">
+                            {LOCKED_INSIGHT_BULLETS.map((line, i) => (
+                              <li key={i} className="flex gap-2 border-l-2 border-primary/25 pl-2">
+                                <span className="select-none">•</span>
+                                <span>{line}</span>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
+                            <p className="text-sm text-muted-foreground">{FULL_DIAGNOSTIC_UPGRADE_HOOK}</p>
+                            <div className="mt-3 flex flex-wrap justify-center gap-2">
+                              <UnlockFullReportButton onUnlock={unlockFullReport} />
+                              <Button variant="outline" asChild>
+                                <Link href="#full-report-upgrade">Upgrade section</Link>
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {cat.what_works && (
+                            <div className="rounded-lg border border-success/30 bg-success/10 p-3">
+                              <p className="mb-1 flex items-center gap-1.5 font-semibold">
+                                <CircleCheck className="size-4 stroke-[1.5] text-chart-4" />
+                                What Works:
+                              </p>
+                              <p className="text-sm">{cat.what_works}</p>
+                            </div>
+                          )}
+                          {cat.what_failed && (
+                            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
+                              <p className="mb-1 flex items-center gap-1.5 font-semibold">
+                                <CircleX className="size-4 stroke-[1.5] text-destructive" />
+                                What Failed:
+                              </p>
+                              <p className="text-sm">{cat.what_failed}</p>
+                            </div>
+                          )}
+                          {cat.fix_steps.length > 0 && (
+                            <div>
+                              <p className="mb-2 flex items-center gap-1.5 font-semibold">
+                                <Wrench className="size-4 stroke-[1.5] text-muted-foreground" />
+                                Fix Steps:
+                              </p>
+                              <ul className="space-y-2">
+                                {cat.fix_steps.map((step, idx) => (
+                                  <li
+                                    key={idx}
+                                    className="rounded-lg border border-border bg-muted/40 p-3 text-sm"
+                                  >
+                                    {step}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {!cat.what_works && !cat.what_failed && cat.fix_steps.length === 0 && (
+                            <p className="text-muted-foreground">No specific findings for this category.</p>
+                          )}
+                        </>
+                      )}
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              ) : (
+                <p className="text-muted-foreground">
+                  {hasFullReportAccess
+                    ? "Category-level breakdown was not returned for this roast. The element audit and quick wins below may still be complete—try re-running if you expected category tabs."
+                    : "No category data available."}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {auditItems.length > 0 ? (
+            <SectionHeader
+              title="Element-by-element audit"
+              description={REPORT_ELEMENT_SUB}
+              size="compact"
+            />
+          ) : null}
+
           {auditItems.length > 0 && (
             <Card>
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  {auditItems.slice(0, 6).map((item, idx) => {
+                  {(hasFullReportAccess ? auditItems : auditItems.slice(0, 6)).map((item, idx) => {
                     const status = item.status || "Unknown";
 
                     return (
@@ -1194,111 +1291,52 @@ export default function RoastPage() {
             </Card>
           )}
 
-          {/* Deep dive (after element audit) */}
-          <Card>
-            <CardContent className="pt-6">
-              {categories.length > 0 ? (
-                <Tabs defaultValue={categories[0]?.name}>
-                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-                    {categories.map((cat) => {
-                      const CatIcon = categoryTabIcon(cat.name);
-                      return (
-                        <TabsTrigger
-                          key={cat.name}
-                          value={cat.name}
-                          className="gap-1.5 text-xs sm:text-sm"
-                        >
-                          <CatIcon className="size-4 shrink-0 stroke-[1.5] opacity-80" />
-                          <span className="truncate">{cat.name}</span>
-                        </TabsTrigger>
-                      );
-                    })}
-                  </TabsList>
-                  {categories.map((cat) => (
-                    <TabsContent key={cat.name} value={cat.name} className="space-y-4">
-                      <div>
-                        <Badge variant={cat.impact === "High" ? "destructive" : "secondary"}>
-                          Impact: {cat.impact} {cat.impact === "High" ? "- Priority fix" : ""}
-                        </Badge>
+          {roastSupplementHasContent(scrollResolved, roastData.trafficEstimate) ? (
+            <>
+              <SectionHeader
+                title="Supplementary audit coverage"
+                description="Context from the roast pipeline that does not appear in other sections of this report."
+                size="compact"
+              />
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  {scrollResolved &&
+                  (String(scrollResolved.situation || "").trim() ||
+                    String(scrollResolved.action || "").trim() ||
+                    (scrollResolved.evidenceBullets?.length ?? 0) > 0) ? (
+                    <div className="rounded-lg border border-border bg-muted/20 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Scroll effectiveness
+                      </p>
+                      {scrollResolved.situation ? (
+                        <p className="mt-2 text-sm">{scrollResolved.situation}</p>
+                      ) : null}
+                      {scrollResolved.action ? (
                         <p className="mt-2 text-sm">
-                          <strong>Score:</strong>{" "}
-                          <span className="font-mono font-semibold tabular-nums">
-                            {cat.score}
-                          </span>
-                          /100 | <strong>Verdict:</strong> {cat.verdict}
+                          <span className="font-semibold">Next step</span> {scrollResolved.action}
                         </p>
-                      </div>
-                      {!hasFullReportAccess ? (
-                        <>
-                          <ul className="list-none space-y-1.5 text-sm text-muted-foreground">
-                            {LOCKED_INSIGHT_BULLETS.map((line, i) => (
-                              <li key={i} className="flex gap-2 border-l-2 border-primary/25 pl-2">
-                                <span className="select-none">•</span>
-                                <span>{line}</span>
-                              </li>
-                            ))}
-                          </ul>
-                          <div className="rounded-lg border border-border bg-muted/30 p-4 text-center">
-                            <p className="text-sm text-muted-foreground">{FULL_DIAGNOSTIC_UPGRADE_HOOK}</p>
-                            <div className="mt-3 flex flex-wrap justify-center gap-2">
-                              <UnlockFullReportButton onUnlock={unlockFullReport} />
-                              <Button variant="outline" asChild>
-                                <Link href="#full-report-upgrade">Upgrade section</Link>
-                              </Button>
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          {cat.what_works && (
-                            <div className="rounded-lg border border-success/30 bg-success/10 p-3">
-                              <p className="mb-1 flex items-center gap-1.5 font-semibold">
-                                <CircleCheck className="size-4 stroke-[1.5] text-chart-4" />
-                                What Works:
-                              </p>
-                              <p className="text-sm">{cat.what_works}</p>
-                            </div>
-                          )}
-                          {cat.what_failed && (
-                            <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3">
-                              <p className="mb-1 flex items-center gap-1.5 font-semibold">
-                                <CircleX className="size-4 stroke-[1.5] text-destructive" />
-                                What Failed:
-                              </p>
-                              <p className="text-sm">{cat.what_failed}</p>
-                            </div>
-                          )}
-                          {cat.fix_steps.length > 0 && (
-                            <div>
-                              <p className="mb-2 flex items-center gap-1.5 font-semibold">
-                                <Wrench className="size-4 stroke-[1.5] text-muted-foreground" />
-                                Fix Steps:
-                              </p>
-                              <ul className="space-y-2">
-                                {cat.fix_steps.map((step, idx) => (
-                                  <li
-                                    key={idx}
-                                    className="rounded-lg border border-border bg-muted/40 p-3 text-sm"
-                                  >
-                                    {step}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {!cat.what_works && !cat.what_failed && cat.fix_steps.length === 0 && (
-                            <p className="text-muted-foreground">No specific findings for this category.</p>
-                          )}
-                        </>
-                      )}
-                    </TabsContent>
-                  ))}
-                </Tabs>
-              ) : (
-                <p className="text-muted-foreground">No category data available.</p>
-              )}
-            </CardContent>
-          </Card>
+                      ) : null}
+                      {scrollResolved.evidenceBullets && scrollResolved.evidenceBullets.length > 0 ? (
+                        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
+                          {scrollResolved.evidenceBullets.filter(Boolean).map((b, i) => (
+                            <li key={i}>{b}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {roastData.trafficEstimate?.note?.trim() ? (
+                    <div className="rounded-lg border border-border bg-muted/20 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        Traffic estimate note
+                      </p>
+                      <p className="mt-2 text-sm">{roastData.trafficEstimate.note.trim()}</p>
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
         </div>
       </SidebarInset>
       <AuthRequiredDialog

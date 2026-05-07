@@ -68,7 +68,8 @@ function isFlashModel(modelName: string): boolean {
   return modelName.toLowerCase().includes("flash");
 }
 
-function estimateCost(
+/** Rough USD estimate ($/1M total tokens) for admin analytics — flash vs non-flash heuristic. */
+export function estimateGeminiCallCostUsd(
   modelName: string,
   inputTokens: number,
   outputTokens: number
@@ -77,6 +78,14 @@ function estimateCost(
   const ratePerMillion = PRICING_TIERS[tier];
   const totalTokens = inputTokens + outputTokens;
   return (totalTokens / 1_000_000) * ratePerMillion;
+}
+
+function estimateCost(
+  modelName: string,
+  inputTokens: number,
+  outputTokens: number
+): number {
+  return estimateGeminiCallCostUsd(modelName, inputTokens, outputTokens);
 }
 
 export function initializeGeminiClient(): {

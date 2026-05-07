@@ -1,9 +1,33 @@
-## 2026-04-02 - Razorpay payment failed / unknown error (checkout)
-**Category:** Core Logic / Bugfix
-**Instruction:**
-> Razorpay showed payment failed with unknown error when purchasing. Address by defaulting Orders to **INR** + paise for typical India merchant keys (USD optional via `RAZORPAY_CURRENCY=USD`), documenting env overrides, clarifying billing page copy (USD display vs checkout currency), and improving verify failure messaging on the client when the API returns empty fields.
+## 2026-05-07 - Landing C1–C3 concepts (plan)
 
-## 2026-04-02 - Pricing anchors $79 list + agency double discount copy
+**Category:** Feature Request / Architecture
+
+**Instruction:**
+> Add `/v/c1`–`/v/c3` as additional comparison landings (keep `/v/a1`–`/v/b2` unchanged); grouped variation switcher (new C vs original four); scoped CSS tokens `--lv-c1/c2/c3`; C-only copy allowed; shared roast pipeline; append structure + mobile workflow logs.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-07 - Landing page revamp: four visual variations + menu
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Implement attached plan for 4 landing variations (A1 gradient mesh, A2 dark brutalist, B1 Apple clean, B2 Linear crisp): do not edit the plan file; preserve working roast logic; keep existing body copy where possible; add variation routes and navbar switcher; CSS tokens/animations in `globals.css`; mobile-friendly layouts.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-07 - Report UX visual parity (plan implementation)
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Implement attached plan: Pro/full data via `hasFullReportAccess` + persisted `detailedAudit` (server-first hydrate), unified revenue-leak and cost-of-inaction accents vs `insight-layers-report`, semantic colors for SEO/PageSpeed, Scroll of Death %, economics headlines; hero snapshot horizontal scroll (no crop) in app + `buildHeroSnapshotFigureHtml`; `buildRadarSvg` uses `RADAR_AXIS_LABELS` + `scoreForRadarAxis`; replace site-score tables with shared tile grid in HTML + PDF.
+
+**Category:** Architecture / Documentation
+**Instruction:**
+> Create an md file that (1) explains the workflow after the user submits a URL through report generated, ignoring user type—only the processes; (2) documents the exact prompts, detailed instructions, and audit logic given to the LLM at every step from pre-audit through the detailed report (pre-audit, during audit, narrative, insight layers, etc.).
+
+## 2026-04-02 - Razorpay payment failed / unknown error (checkout)
 **Category:** Feature Request / UX
 **Instruction:**
 > Keep discount framing from $79 for 1 credit; for agency, double the discount / strikethrough messaging (stronger stacked savings vs list and vs checkout singles).
@@ -451,6 +475,41 @@
 **Category:** Core Logic / Bugfix / Feature Request
 **Instruction:**
 > Check Firebase DB setup (no database in console). Dashboard shows 20 credits but cannot start roast—root cause and fix. Sandbox Razorpay agency pack does not add credits. Remove Razorpay sandbox banner text from billing page.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-04-07 - Roast report UI: executive summary, sections, scroll, heatmap
+**Category:** Feature Request / UX / Bugfix
+**Instruction:**
+> Below Executive summary block, the titles are missing—add those. Summarise with particulars the flow on Visual Hierarchy & Layout and other factors and element-by-element audits in an md file. The Scroll of Death—rationalise fonts on this block; issue and fix blocks fonts look bigger overall; fix the entire block. Match pattern of Above the fold | First-screen band (~money zone) same as landing page. Audit 1 chunk snapshot and heatmap over it flow (long-pending error still occurs). Executive summary got shortened and completely changes—check what was deleted in code and fix using uniform fonts for consistent look.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-04-07 - Unified report refactor (PDF, HTML export, browser)
+**Category:** Architecture / Feature Request
+**Instruction:**
+> Implement the attached plan: PDF first (structure, `pdfAxisScoreHex`/`pdfVerdictHex`, category before element, completeness/supplement); parity in `report-html.ts`; `/roast/[id]` aligned for section order, shared subtexts, full `audit_items` for paid, matching score/status color thresholds; verify with `tsc`. Do not edit the plan file.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-04-08 - Audit parameters inventory (complete, categorized)
+**Category:** Feature Request / Documentation
+**Instruction:**
+> Create a complete list of everything checked in the audit, organized by category and subcategory, with importance and impact, in an MD file. No false information; do not omit anything that is actually checked.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-04-08 - LLM env (2 stacks × 2 models) + admin analytics
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Create env variables for LLMs with two-level fallback: two LLM stacks, each with primary + one fallback (four models total). Add admin-only menu: user analytics; audit trends for today, 7, 30, 90, 120 days, and 1 year; average input/output tokens and cost per audit; current LLM providers/models; other useful stats.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-05-07 - Report parity, hero snapshot, scroll copy, roast latency
+**Category:** Architecture / Feature Request
+**Instruction:**
+> Implement the attached plan (do not edit the plan file): roast POST latency instrumentation; full scroll zone / scroll effectiveness copy (no aggressive clipping); hero snapshot device threading, persistence, base64 validation; executive summary markdown stripping; unified score bands (web + PDF/SVG + optional insight card coloring); pass calculator into PDF API and `pdf-templates`; shared category-scoring helper across UI / HTML / PDF; verify PDF route limits and embedded image readiness.
 
 **Constraint:** Confirmed this log entry was appended when completing this batch.
 

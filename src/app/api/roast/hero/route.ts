@@ -10,7 +10,7 @@ const bodySchema = z.object({
 
 /**
  * POST /api/roast/hero
- * First-viewport capture only (for heatmap) when client storage omitted heroScreenshot.
+ * First-viewport capture when client storage omitted heroScreenshot.
  */
 export async function POST(request: NextRequest) {
   try {

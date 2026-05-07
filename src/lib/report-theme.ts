@@ -2,6 +2,8 @@
  * Hex/rgba palette for Puppeteer PDFs, static HTML export, and SVG charts.
  * Keep in sync with src/app/globals.css (:root[data-theme="dark"] tokens).
  */
+import { getScoreBand } from "@/lib/score-band";
+
 export const reportHex = {
   bg: "#0B0F17",
   surface: "#111827",
@@ -18,6 +20,28 @@ export const reportHex = {
   foldLine: "#F59E0B",
   codeBg: "#0B0F17",
 } as const;
+
+/** Aligns with onboard radar tiles: &gt;80 strong, 60–80 middling, &lt;60 weak. */
+export function pdfAxisScoreHex(score: number): string {
+  const n = Number(score);
+  if (!Number.isFinite(n)) return reportHex.muted;
+  switch (getScoreBand(n)) {
+    case "strong":
+      return reportHex.success;
+    case "mid":
+      return reportHex.warning;
+    default:
+      return reportHex.destructive;
+  }
+}
+
+/** Site verdict band (same labels as `verdictLabelFromSiteScore`). */
+export function pdfVerdictHex(verdict: string): string {
+  const v = verdict.trim().toUpperCase();
+  if (v === "EXCELLENT") return reportHex.success;
+  if (v === "NEEDS OPTIMIZATION") return reportHex.warning;
+  return reportHex.destructive;
+}
 
 export const reportFontsHref =
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap";
@@ -368,6 +392,55 @@ export function getReportCoreStyles(): string {
       word-break: break-word;
     }
     small, .muted { color: ${h.muted}; }
+    .report-exec-diagnostics .report-prose,
+    .report-exec-diagnostics .report-prose p {
+      font-size: 0.875rem;
+      line-height: 1.625;
+      text-align: left;
+      hyphens: none;
+      -webkit-hyphens: none;
+    }
+    .report-exec-diagnostics .report-label {
+      font-size: 0.625rem;
+      letter-spacing: 0.08em;
+    }
+    .report-exec-diagnostics .report-section-head p {
+      font-size: 0.875rem;
+      line-height: 1.625;
+    }
+    .report-radar-tile-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: var(--rs-md) 0 var(--rs-lg);
+      width: 100%;
+    }
+    @media (min-width: 640px) {
+      .report-radar-tile-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (min-width: 960px) {
+      .report-radar-tile-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    }
+    .report-site-score-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: var(--rs-md) 0 var(--rs-lg);
+      font-size: 0.8125rem;
+    }
+    .report-site-score-table th,
+    .report-site-score-table td {
+      border: 1px solid ${h.border};
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .report-site-score-table th {
+      background: ${h.surfaceMuted};
+      font-weight: 600;
+      color: ${h.muted};
+      font-size: 0.6875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
   `;
 }
 

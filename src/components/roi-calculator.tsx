@@ -22,7 +22,7 @@ interface ROICalculatorProps {
 
 export function ROICalculator({
   pageHeight = 3000,
-  defaultPrice = 50.0,
+  defaultPrice = 29,
   defaultIndustry = "SaaS",
   defaultTraffic = 1000,
 }: ROICalculatorProps) {

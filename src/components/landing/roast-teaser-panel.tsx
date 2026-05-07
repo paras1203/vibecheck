@@ -5,7 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RoastRadar } from "@/components/roast-radar";
 import { FULL_REPORT_SUBLINE } from "@/lib/report-copy";
+import { costOfInactionHeadlineClass } from "@/lib/revenue-scenario-accents";
 import type { RoastTeaserContent } from "@/lib/roast-teaser";
+import {
+  RADAR_AXIS_EXPLANATIONS,
+  radarScoreValueClass,
+  radarTilesForDisplay,
+} from "@/lib/radar-axis-scores";
+import { cn } from "@/lib/utils";
 
 type RoastTeaserPanelProps = {
   teaser: RoastTeaserContent;
@@ -14,7 +21,7 @@ type RoastTeaserPanelProps = {
 };
 
 export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: RoastTeaserPanelProps) {
-  const radarEntries = Object.entries(teaser.radarMetrics);
+  const pillarTiles = radarTilesForDisplay(teaser.radarMetrics);
   const leakFormatted = teaser.annualLeakUsd.toLocaleString(undefined, {
     maximumFractionDigits: 0,
   });
@@ -57,7 +64,12 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
                   className="relative flex size-24 items-center justify-center rounded-full border-4 border-primary/25 sm:size-28"
                   aria-hidden
                 >
-                  <span className="font-mono text-2xl font-semibold tabular-nums text-primary sm:text-3xl">
+                  <span
+                    className={cn(
+                      "font-mono text-2xl font-semibold tabular-nums sm:text-3xl",
+                      radarScoreValueClass(teaser.score)
+                    )}
+                  >
                     {teaser.score}
                   </span>
                 </div>
@@ -71,7 +83,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
               <CardTitle className="text-sm">Cost of inaction</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <p className="font-mono text-base font-semibold tabular-nums text-primary sm:text-lg">
+              <p className={cn(costOfInactionHeadlineClass(), "text-base sm:text-lg")}>
                 ~${leakFormatted}/yr left on the table
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground sm:text-xs">
@@ -103,13 +115,23 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
           <div className="mt-3">
             <p className="text-label mb-2 text-muted-foreground">Site Score</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
-              {radarEntries.map(([label, score]) => (
+              {pillarTiles.map(({ label, score }) => (
                 <div
                   key={label}
-                  className="rounded-lg border border-border-muted bg-surface-2/30 px-2 py-2 text-center sm:px-3"
+                  className="flex min-h-[6.75rem] flex-col justify-center rounded-lg border border-border-muted bg-surface-2/30 px-2 py-2 text-center sm:min-h-[7.25rem] sm:px-3 sm:py-4"
                 >
                   <div className="text-[11px] font-medium text-muted-foreground sm:text-xs">{label}</div>
-                  <div className="font-mono text-sm font-semibold tabular-nums text-foreground">{score}</div>
+                  <div
+                    className={cn(
+                      "mt-1 font-mono text-sm font-semibold tabular-nums",
+                      radarScoreValueClass(score)
+                    )}
+                  >
+                    {score}
+                  </div>
+                  <p className="mt-2 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">
+                    {RADAR_AXIS_EXPLANATIONS[label]}
+                  </p>
                 </div>
               ))}
             </div>

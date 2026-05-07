@@ -86,6 +86,15 @@ function toMonthlyOrderValue(amount: number, cadence: BillingCadence): number {
 
 type OfferSample = { raw: number; cadence: BillingCadence; monthlyEq: number };
 
+/** Above this, unknown/one-time amounts are treated as annual or dropped (avoids $12k/mo bugs). */
+const SANITY_IMPLIED_MONTHLY_CAP_USD = 499;
+
+export type OfferEconomics = {
+  monthlyAov: number;
+  price_from_page: boolean;
+  price_billing_note: string;
+};
+
 const PRICING_INTENT =
   /\b(pricing|price|plan|plans|tier|tiers|subscribe|subscription|billing|checkout|seat|seats|\/mo\b|\/month\b|per\s+month|monthly|annual|yearly|₹|rs\.|inr|usd)\b/i;
 
@@ -99,11 +108,27 @@ function lowerMedianSorted(sorted: number[]): number {
   return sorted[idx] ?? sorted[0];
 }
 
-function extractOfferEconomics(pageText: string): {
-  monthlyAov: number;
-  price_from_page: boolean;
-  price_billing_note: string;
-} {
+function pushSampleFromMatch(samples: OfferSample[], amt: number, ctx: string): void {
+  let cadence = cadenceFromContext(ctx);
+  if (cadence === "unknown") {
+    cadence = refineUnknownCadence(amt, ctx);
+  }
+  let monthlyEq = toMonthlyOrderValue(amt, cadence);
+  if (cadence === "unknown" || cadence === "one_time") {
+    if (amt > SANITY_IMPLIED_MONTHLY_CAP_USD) {
+      const asAnnualMonthly = amt / 12;
+      if (asAnnualMonthly <= SANITY_IMPLIED_MONTHLY_CAP_USD) {
+        cadence = "yearly";
+        monthlyEq = asAnnualMonthly;
+      } else {
+        return;
+      }
+    }
+  }
+  samples.push({ raw: amt, cadence, monthlyEq });
+}
+
+function extractOfferEconomics(pageText: string): OfferEconomics {
   const fallbackAov = defaultRevenueModelAovUsd();
   const samples: OfferSample[] = [];
   const ctxBefore = 72;
@@ -116,12 +141,7 @@ function extractOfferEconomics(pageText: string): {
     if (amt == null) continue;
     const ctx = pageText.slice(Math.max(0, m.index - ctxBefore), m.index + ctxAfter);
     if (!pricingIntentInContext(ctx)) continue;
-    let cadence = cadenceFromContext(ctx);
-    if (cadence === "unknown") {
-      cadence = refineUnknownCadence(amt, ctx);
-    }
-    const monthlyEq = toMonthlyOrderValue(amt, cadence);
-    samples.push({ raw: amt, cadence, monthlyEq });
+    pushSampleFromMatch(samples, amt, ctx);
   }
 
   const inr = /(?:₹|rs\.?\s*|inr\s*)[\s]*([\d,]+(?:\.\d{1,2})?)/gi;
@@ -130,20 +150,14 @@ function extractOfferEconomics(pageText: string): {
     if (amt == null) continue;
     const ctx = pageText.slice(Math.max(0, m.index - ctxBefore), m.index + ctxAfter);
     if (!pricingIntentInContext(ctx)) continue;
-    let cadence = cadenceFromContext(ctx);
-    if (cadence === "unknown") {
-      cadence = refineUnknownCadence(amt, ctx);
-    }
-    const monthlyEq = toMonthlyOrderValue(amt, cadence);
-    samples.push({ raw: amt, cadence, monthlyEq });
+    pushSampleFromMatch(samples, amt, ctx);
   }
 
   if (samples.length === 0) {
     return {
       monthlyAov: fallbackAov,
       price_from_page: false,
-      price_billing_note:
-        "No clear pricing block detected near currency amounts; revenue math uses DEFAULT_REVENUE_MODEL_AOV_USD (or 50) as an illustrative order value.",
+      price_billing_note: `No clear pricing block detected; using illustrative order value ($${fallbackAov}) — override in the report ROI controls if needed.`,
     };
   }
 
@@ -166,24 +180,53 @@ function extractOfferEconomics(pageText: string): {
   if (yearlyLabeled.length > 0) {
     const sorted = yearlyLabeled.map((s) => s.monthlyEq).sort((a, b) => a - b);
     const pick = lowerMedianSorted(sorted);
-    const rounded = Math.round(pick * 100) / 100;
+    let rounded = Math.round(pick * 100) / 100;
+    if (rounded > SANITY_IMPLIED_MONTHLY_CAP_USD) {
+      rounded = SANITY_IMPLIED_MONTHLY_CAP_USD;
+    }
     return {
       monthlyAov: clampEq(rounded),
       price_from_page: true,
       price_billing_note:
-        "Estimated from annual prices on the page, normalized to a monthly order value (÷12).",
+        "Estimated from annual prices on the page, normalized to a monthly order value (÷12); very high results are capped for a plausible default.",
     };
   }
 
   const allEq = samples.map((s) => s.monthlyEq).sort((a, b) => a - b);
   const pick = lowerMedianSorted(allEq);
-  const rounded = Math.round(pick * 100) / 100;
+  let rounded = Math.round(pick * 100) / 100;
+  if (rounded > SANITY_IMPLIED_MONTHLY_CAP_USD) {
+    return {
+      monthlyAov: fallbackAov,
+      price_from_page: false,
+      price_billing_note:
+        "Detected pricing-like amounts were too large for a typical monthly order estimate; using the default illustrative AOV — adjust in the ROI section if your offer differs.",
+    };
+  }
   return {
     monthlyAov: clampEq(rounded),
     price_from_page: true,
     price_billing_note:
       "Offer value estimated from visible pricing (monthly / yearly / one-time normalized to a monthly order value for this model).",
   };
+}
+
+function mergeOfferEconomics(landing: OfferEconomics, pricing: OfferEconomics | null): OfferEconomics {
+  if (!pricing) return landing;
+  if (pricing.price_from_page && !landing.price_from_page) {
+    return {
+      ...pricing,
+      price_billing_note: `${pricing.price_billing_note} (dedicated pricing page)`,
+    };
+  }
+  if (pricing.price_from_page && landing.price_from_page) {
+    return {
+      monthlyAov: pricing.monthlyAov,
+      price_from_page: true,
+      price_billing_note: `${pricing.price_billing_note} Preferred dedicated pricing page over landing copy.`,
+    };
+  }
+  return landing;
 }
 
 /**
@@ -249,16 +292,53 @@ export async function quickScan(url: string): Promise<{
       // Ignore errors
     }
 
+    let pricingPageText = "";
+    try {
+      const parsed = new URL(normalizedUrl);
+      const pathNorm = parsed.pathname.replace(/\/$/, "").toLowerCase();
+      const onPricingPath = pathNorm === "/pricing" || pathNorm.endsWith("/pricing");
+      if (!onPricingPath) {
+        for (const extraPath of ["/pricing", "/plans"]) {
+          try {
+            const extraUrl = new URL(extraPath, parsed.origin).href;
+            await page.goto(extraUrl, {
+              waitUntil: "domcontentloaded",
+              timeout: 15000,
+            });
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            pricingPageText = String(await page.evaluate("document.body.innerText"));
+            break;
+          } catch {
+            /* try next path */
+          }
+        }
+      }
+    } catch {
+      /* optional secondary fetch */
+    }
+
     await browser.close();
 
-    const offer = extractOfferEconomics(pageText);
+    const offerLanding = extractOfferEconomics(pageText);
+    const offerPricing = pricingPageText.trim()
+      ? extractOfferEconomics(pricingPageText)
+      : null;
+    const offer = mergeOfferEconomics(offerLanding, offerPricing);
     const priceGuess = offer.monthlyAov;
     const priceFromPage = offer.price_from_page;
     const priceBillingNote = offer.price_billing_note;
 
     // Detect industry (exact from Python lines 2128-2136)
     let industryGuess = "SaaS";
-    const textLower = (pageText + " " + title + " " + metaDesc).toLowerCase();
+    const textLower = (
+      pageText +
+      " " +
+      pricingPageText +
+      " " +
+      title +
+      " " +
+      metaDesc
+    ).toLowerCase();
 
     if (
       textLower.includes("agency") ||

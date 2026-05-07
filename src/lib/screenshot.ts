@@ -118,7 +118,7 @@ export async function getPuppeteerWithStealth() {
  * Bypasses Cloudflare/WAF protections by mimicking a real browser
  * @param url - The URL to screenshot
  * @param device - Device type: 'desktop' or 'mobile' (default: 'desktop')
- * @returns Promise<string[]> - Array of base64-encoded JPEG strings (one per viewport chunk)
+ * @returns Promise<string[]> - Base64-encoded JPEG for first viewport only (after auto-scroll load pass)
  */
 export async function takeScreenshot(url: string, device: 'desktop' | 'mobile' = 'desktop'): Promise<string[]> {
   let browser: Browser | null = null;
@@ -193,71 +193,23 @@ export async function takeScreenshot(url: string, device: 'desktop' | 'mobile' =
     // This ensures all content is loaded before we start capturing
     await autoScroll(page, 5000, 50000); // 5 second max, 50000px max height
 
-    // 6. Rolling Screenshot Strategy: Capture overlapping viewport chunks
-    // Smart scrolling loop that captures until bottom is reached (up to sanity limit)
-    const overlap = 300; // Increased to 300px for better context continuity
-    const sanityLimit = 15; // Maximum chunks to prevent infinite loops
-    const screenshots: string[] = [];
-    
-    // Scroll back to top to start capturing from the beginning
+    // 6. First viewport only (after auto-scroll ensured lazy content; capture from top)
     await page.evaluate(() => {
       window.scrollTo(0, 0);
     });
-    await new Promise((resolve) => setTimeout(resolve, 500)); // Wait for scroll to complete
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    let scrollPosition = 0;
-    let chunkIndex = 0;
+    const screenshotBuffer = (await page.screenshot({
+      type: "jpeg",
+      quality: 80,
+      fullPage: false,
+      optimizeForSpeed: false,
+    })) as Buffer;
 
-    console.log(`Starting rolling screenshot capture (${device} mode, max ${sanityLimit} chunks)...`);
+    const base64String = screenshotBuffer.toString("base64");
+    console.log(`First-viewport capture (${device} mode, ${screenshotBuffer.length} bytes)`);
 
-    while (chunkIndex < sanityLimit) {
-      // Get current page height to check if we've reached the bottom
-      const totalHeight = await page.evaluate(() => {
-        return Math.max(
-          document.body.scrollHeight,
-          document.body.offsetHeight,
-          document.documentElement.clientHeight,
-          document.documentElement.scrollHeight,
-          document.documentElement.offsetHeight
-        );
-      });
-
-      // Check if we've scrolled past the bottom
-      if (scrollPosition >= totalHeight - viewportHeight) {
-        console.log(`Reached bottom of page at scroll position ${scrollPosition}px (total height: ${totalHeight}px)`);
-        break;
-      }
-
-      // Scroll to current position
-      await page.evaluate((y) => {
-        window.scrollTo(0, y);
-      }, scrollPosition);
-
-      // Wait for scroll and any lazy-loaded content (especially important for mobile)
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Capture screenshot of current viewport (not full page)
-      const screenshotBuffer = await page.screenshot({
-        type: "jpeg",
-        quality: 80,
-        fullPage: false, // Only capture viewport, not full page
-        optimizeForSpeed: false, // Prioritize quality
-      }) as Buffer;
-
-      // Convert to base64 string
-      const base64String = screenshotBuffer.toString("base64");
-      screenshots.push(base64String);
-
-      console.log(`Captured chunk ${chunkIndex + 1} at scroll position ${scrollPosition}px (${screenshotBuffer.length} bytes)`);
-
-      // Calculate next scroll position (with overlap)
-      scrollPosition += (viewportHeight - overlap);
-      chunkIndex++;
-    }
-
-    console.log(`Rolling screenshot complete. Captured ${screenshots.length} chunks in ${device} mode.`);
-
-    return screenshots;
+    return [base64String];
   } finally {
     // Always close the browser
     if (browser) {

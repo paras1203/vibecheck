@@ -1,4 +1,6 @@
 /** Canonical labels aligned with `RoastRadar` / sample report. */
+import { getScoreBand } from "@/lib/score-band";
+
 export const RADAR_AXIS_LABELS = [
   "UX",
   "Trust",
@@ -42,11 +44,26 @@ export function scoreForRadarAxis(
   return 0;
 }
 
+/** Ordered UX → Trust → Copy → … for grids that must match `RoastRadar` / exports. */
+export function radarTilesForDisplay(
+  radarMetrics: Record<string, number>
+): { label: RadarAxisLabel; score: number }[] {
+  return RADAR_AXIS_LABELS.map((label) => ({
+    label,
+    score: scoreForRadarAxis(radarMetrics, label),
+  }));
+}
+
 /** Tailwind classes for axis score: &gt;80 strong, 60–80 middling, &lt;60 weak. */
 export function radarScoreValueClass(score: number): string {
   const n = Number(score);
   if (!Number.isFinite(n)) return "text-foreground";
-  if (n > 80) return "text-emerald-600 dark:text-emerald-400";
-  if (n >= 60) return "text-amber-600 dark:text-amber-500";
-  return "text-destructive";
+  switch (getScoreBand(n)) {
+    case "strong":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "mid":
+      return "text-amber-600 dark:text-amber-500";
+    default:
+      return "text-destructive";
+  }
 }

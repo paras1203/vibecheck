@@ -1,6 +1,6 @@
 /**
  * Scroll-of-death copy from audit JSON + measured scroll metrics.
- * One concise issue → fix line per audit item (no long rationale dumps).
+ * One issue → fix line per audit item (full text shown in UI/reports).
  */
 
 import type { ScrollEffectiveness } from "@/types/roast-extras";
@@ -75,13 +75,12 @@ function getFixText(item: AuditItemLike): string {
   return "";
 }
 
-function clipWords(s: string, max: number): string {
+/** Collapse whitespace; cap only at a very high bound to avoid pathological payloads. */
+const SCROLL_LINE_MAX = 8000;
+function normalizeScrollLine(s: string): string {
   const t = s.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  const cut = t.slice(0, max);
-  const sp = cut.lastIndexOf(" ");
-  const head = sp > max * 0.5 ? cut.slice(0, sp) : cut.trimEnd();
-  return `${head}…`;
+  if (t.length <= SCROLL_LINE_MAX) return t;
+  return `${t.slice(0, SCROLL_LINE_MAX - 1)}…`;
 }
 
 function isScrollRelevantItem(item: AuditItemLike): boolean {
@@ -116,8 +115,8 @@ function oneLineIssueFix(item: AuditItemLike): string | null {
   if (!issue && rat) issue = rat;
   if (!issue.trim()) return null;
 
-  const issueOut = clipWords(issue, 88);
-  const fixOut = fix ? clipWords(fix, 72) : "";
+  const issueOut = normalizeScrollLine(issue);
+  const fixOut = fix ? normalizeScrollLine(fix) : "";
   if (fixOut) return `${issueOut}${SCROLL_BULLET_ARROW}${fixOut}`;
   return issueOut;
 }
@@ -155,7 +154,7 @@ function extractConciseBullets(roast: {
     }
   }
 
-  return out.slice(0, 4);
+  return out.slice(0, 12);
 }
 
 function weakestConversionUxLine(radar: Record<string, number> | undefined): string | null {

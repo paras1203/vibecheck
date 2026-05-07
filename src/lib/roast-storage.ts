@@ -12,34 +12,42 @@ function sessionHeroKey(roastId: string): string {
   return `roast_${roastId}${heroSessionSuffix}`;
 }
 
+function stashHeroSession(roastId: string, hero: string): void {
+  try {
+    sessionStorage.setItem(sessionHeroKey(roastId), hero);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Drop heavy fields before `localStorage` (quota). */
 export function roastDataForLocalStorage(data: AuditReportPayload): AuditReportPayload {
   const { heroScreenshot: _h, ...rest } = data;
   return rest;
 }
 
-/** Prefer full payload (keeps heatmap). On quota error, strip body and stash hero in sessionStorage. */
+/** Prefer full payload (keeps hero snapshot). On quota error, strip body and stash hero in sessionStorage. */
 export function persistRoastForClientNavigation(
   roastId: string,
   payload: AuditReportPayload
 ): void {
   const key = `roast_${roastId}`;
   const hero = payload.heroScreenshot;
-  try {
-    localStorage.setItem(key, JSON.stringify(payload));
+  if (hero != null && String(hero).trim()) {
+    stashHeroSession(roastId, String(hero));
+  } else {
     try {
       sessionStorage.removeItem(sessionHeroKey(roastId));
     } catch {
       /* ignore */
     }
+  }
+  try {
+    localStorage.setItem(key, JSON.stringify(payload));
     return;
   } catch {
     if (hero != null && String(hero).trim()) {
-      try {
-        sessionStorage.setItem(sessionHeroKey(roastId), String(hero));
-      } catch {
-        /* ignore */
-      }
+      stashHeroSession(roastId, String(hero));
     }
     localStorage.setItem(key, JSON.stringify(roastDataForLocalStorage(payload)));
   }

@@ -69,6 +69,39 @@
 
 :root {
   --radius: 0.5rem;
+  --lv-bold-bg: #050508;
+  --lv-bold-surface-1: #0a0d14;
+  --lv-bold-surface-2: #12151f;
+  --lv-bold-primary: #8b5cf6;
+  --lv-bold-primary-foreground: #ffffff;
+  --lv-bold-accent: #22d3ee;
+  --lv-bold-border: rgba(255, 255, 255, 0.1);
+  --lv-bold-muted: #94a3b8;
+  --lv-minimal-bg: #ffffff;
+  --lv-minimal-surface-1: #fafafa;
+  --lv-minimal-surface-2: #f4f4f5;
+  --lv-minimal-text: #18181b;
+  --lv-minimal-accent: #6366f1;
+  --lv-minimal-border: rgba(0, 0, 0, 0.06);
+  --lv-mesh-1: rgba(139, 92, 246, 0.35);
+  --lv-mesh-2: rgba(236, 72, 153, 0.28);
+  --lv-mesh-3: rgba(34, 211, 238, 0.22);
+  --lv-c1-accent: #e8a54b;
+  --lv-c1-accent-muted: color-mix(in srgb, var(--lv-c1-accent) 40%, transparent);
+  --lv-c1-border-muted: rgba(255, 255, 255, 0.08);
+  --lv-c2-bg: #f5f5f4;
+  --lv-c2-surface-1: #fafaf9;
+  --lv-c2-surface-2: #e7e5e4;
+  --lv-c2-text: #1c1917;
+  --lv-c2-accent: #0071e3;
+  --lv-c2-border: rgba(28, 25, 23, 0.09);
+  --lv-c3-bg: #09090b;
+  --lv-c3-surface-1: #18181b;
+  --lv-c3-surface-2: #27272a;
+  --lv-c3-text: #fafafa;
+  --lv-c3-muted: #a1a1aa;
+  --lv-c3-accent: #34d399;
+  --lv-c3-border: rgba(250, 250, 250, 0.12);
 }
 
 :root[data-theme="dark"] {
@@ -293,4 +326,121 @@
 
 .animate-marquee {
   animation: marquee 30s linear infinite;
+}
+
+@keyframes lv-gradient-mesh {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.lv-gradient-mesh-bg {
+  background: radial-gradient(ellipse 80% 50% at 20% 40%, var(--lv-mesh-1), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 80% 20%, var(--lv-mesh-2), transparent 50%),
+    radial-gradient(ellipse 60% 40% at 50% 80%, var(--lv-mesh-3), transparent 45%);
+  background-size: 200% 200%;
+  animation: lv-gradient-mesh 18s ease infinite;
+}
+
+.lv-glass {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--lv-bold-surface-1) 65%, transparent);
+  border: 1px solid var(--lv-bold-border);
+}
+
+.lv-glow-violet {
+  box-shadow: 0 0 60px color-mix(in srgb, var(--lv-bold-primary) 40%, transparent);
+}
+
+.lv-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.lv-hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+.lv-text-gradient-bold {
+  background: linear-gradient(
+    135deg,
+    var(--lv-bold-primary) 0%,
+    #ec4899 45%,
+    var(--lv-bold-accent) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.lv-shine {
+  position: relative;
+  overflow: hidden;
+}
+.lv-shine::after {
+  content: "";
+  position: absolute;
+  inset: -40% -60%;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    color-mix(in srgb, #fff 18%, transparent) 50%,
+    transparent 60%
+  );
+  animation: lv-shine 4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes lv-shine {
+  0% {
+    transform: translateX(-30%) rotate(12deg);
+  }
+  100% {
+    transform: translateX(30%) rotate(12deg);
+  }
+}
+
+.lv-grid-faint {
+  background-image: linear-gradient(var(--lv-minimal-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lv-minimal-border) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.lv-input-focus-ring-b2 {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.lv-input-focus-ring-b2:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv-minimal-accent) 25%, transparent);
+  border-color: color-mix(in srgb, var(--lv-minimal-accent) 45%, transparent);
+}
+
+.lv-input-focus-ring-c3 {
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.lv-input-focus-ring-c3:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lv-c3-accent) 28%, transparent);
+  border-color: color-mix(in srgb, var(--lv-c3-accent) 50%, transparent);
+}
+
+.lv-grid-faint-c3 {
+  background-image: linear-gradient(var(--lv-c3-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lv-c3-border) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.lv-hero-dot-mesh-c2 {
+  background-image: radial-gradient(rgba(28, 25, 23, 0.06) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+.lv-c1-frame-glow {
+  box-shadow:
+    0 0 0 1px var(--lv-c1-accent-muted),
+    0 0 48px color-mix(in srgb, var(--lv-c1-accent) 20%, transparent);
+}
+
+.lv-c3-glow-accent {
+  box-shadow: 0 0 40px color-mix(in srgb, var(--lv-c3-accent) 18%, transparent);
 }

@@ -4,7 +4,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import {
   listRoastHistory,
@@ -16,6 +15,10 @@ import {
   reportTimestampFromRoastId,
 } from "@/lib/report-display-name";
 import { generateAuditReportHTML, type AuditReportPayload } from "@/lib/report-html";
+import {
+  DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
+  DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
+} from "@/lib/insight-layers";
 import type { User } from "@/context/AuthContext";
 import {
   DropdownMenu,
@@ -29,6 +32,19 @@ type Props = {
   user: User | null;
   isAdmin: boolean;
 };
+
+function calculatorForStoredPayload(data: AuditReportPayload) {
+  const pg = Number(data.price_guess);
+  const priceFromDom =
+    Boolean((data as { price_from_page?: boolean }).price_from_page) &&
+    Number.isFinite(pg) &&
+    pg > 0;
+  const price = priceFromDom ? pg : DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
+  const industry = data.industry_guess || "SaaS";
+  const traffic =
+    data.trafficEstimate?.monthlySessions ?? DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
+  return { traffic, price, industry };
+}
 
 export function RecentReportsSection({ user, isAdmin }: Props) {
   const [tick, setTick] = useState(0);
@@ -74,6 +90,7 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
     const html = generateAuditReportHTML(data, {
       reportId: entry.id,
       isPaid,
+      calculator: calculatorForStoredPayload(data),
     });
     const base = fileBaseForExport(entry, data);
     const blob = new Blob([html], { type: "text/html;charset=utf-8" });
@@ -101,6 +118,7 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
           roastData: data,
           isPaid,
           url: typeof window !== "undefined" ? window.location.origin : "",
+          calculator: calculatorForStoredPayload(data),
         }),
       });
       if (!res.ok) {
@@ -157,10 +175,9 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
                     </span>
                     <span className="font-mono text-xs text-muted-foreground">#{e.id}</span>
                     {typeof e.overallScore === "number" && (
-                      <Badge variant="secondary">Score {e.overallScore}</Badge>
-                    )}
-                    {e.planAtSave && (
-                      <Badge variant="outline">Saved as {e.planAtSave}</Badge>
+                      <span className="inline-flex items-center rounded-md border border-primary/40 bg-primary/10 px-2.5 py-0.5 font-mono text-sm font-semibold tabular-nums text-primary">
+                        Score {e.overallScore}
+                      </span>
                     )}
                   </div>
                   {e.auditedUrl ? (

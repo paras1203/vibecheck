@@ -13,14 +13,22 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { CreditCard, Settings, LayoutDashboard, Flame, Shield, Home } from "lucide-react";
+import {
+  CreditCard,
+  Settings,
+  LayoutDashboard,
+  Flame,
+  Shield,
+  Home,
+  BarChart3,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import Link from "next/link";
 import { IconFrame } from "@/components/ui/icon-frame";
 import { MetricCard } from "@/components/ui/metric-card";
 import { BRAND_NAME } from "@/lib/brand";
-import { formatCreditsBalance } from "@/lib/credits-balance-display";
+import { creditsBalanceTitle, formatCreditsBalance } from "@/lib/credits-balance-display";
 
 function SidebarNavFallback() {
   return (
@@ -116,6 +124,22 @@ function SidebarNavInner() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/dashboard/admin/analytics"}
+                >
+                  <Link href="/dashboard/admin/analytics">
+                    <IconFrame
+                      size="sm"
+                      className="border-sidebar-border/80 bg-sidebar-accent/50 text-sidebar-foreground [&_svg]:size-4 [&_svg]:stroke-[1.5]"
+                    >
+                      <BarChart3 className="size-4 stroke-[1.5]" />
+                    </IconFrame>
+                    <span>Analytics</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -137,7 +161,10 @@ export function AppSidebar() {
       className="w-[14.4rem]"
     >
       <SidebarHeader className="border-b border-sidebar-border p-3.5">
-        <div className="flex items-center gap-3">
+        <Link
+          href="/"
+          className="flex items-center gap-3 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
+        >
           <IconFrame
             size="sm"
             className="border-sidebar-border bg-sidebar-accent text-sidebar-primary"
@@ -147,7 +174,7 @@ export function AppSidebar() {
           <span className="text-[1.35rem] font-semibold leading-tight tracking-tight text-sidebar-foreground">
             {BRAND_NAME}
           </span>
-        </div>
+        </Link>
         {user && (
           <MetricCard
             className="mt-3 border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground shadow-none [&_.text-caption]:text-sidebar-foreground/60"
@@ -155,11 +182,7 @@ export function AppSidebar() {
             value={
               <span
                 className="font-mono text-2xl font-semibold tabular-nums text-sidebar-primary"
-                title={
-                  user.firestoreSynced
-                    ? undefined
-                    : "Could not load your balance from Firestore. Enable Firestore in Firebase Console and check security rules."
-                }
+                title={creditsBalanceTitle(user)}
               >
                 {formatCreditsBalance(user)}
               </span>

@@ -6,7 +6,13 @@ import { ArrowDown } from "lucide-react";
 import { RoastRadar } from "@/components/roast-radar";
 import { getIndustryInsiderPoints } from "@/lib/industry-insider-copy";
 import { scrollToSection } from "./landing-scroll";
-import { RADAR_AXIS_EXPLANATIONS, type RadarAxisLabel } from "@/lib/radar-axis-scores";
+import { costOfInactionHeadlineClass } from "@/lib/revenue-scenario-accents";
+import {
+  RADAR_AXIS_EXPLANATIONS,
+  radarScoreValueClass,
+  type RadarAxisLabel,
+} from "@/lib/radar-axis-scores";
+import { cn } from "@/lib/utils";
 
 const RADAR_SAMPLE = [
   { label: "UX", score: 68 },
@@ -99,7 +105,7 @@ export function ReportPreviewSection() {
                 <CardTitle className="text-sm">Cost of inaction</CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="font-mono text-lg font-semibold tabular-nums text-primary">
+                <p className={cn(costOfInactionHeadlineClass(), "text-lg")}>
                   ~$184,000/yr left on the table
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -129,7 +135,12 @@ export function ReportPreviewSection() {
                     className="flex min-h-[6.75rem] flex-col justify-center rounded-lg border border-border-muted bg-surface-2/30 px-3 py-4 text-center sm:min-h-[7.25rem]"
                   >
                     <div className="text-xs font-medium text-muted-foreground">{label}</div>
-                    <div className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground">
+                    <div
+                      className={cn(
+                        "mt-1 font-mono text-sm font-semibold tabular-nums",
+                        radarScoreValueClass(score)
+                      )}
+                    >
                       {score}
                     </div>
                     <p className="mt-2 text-[10px] leading-snug text-muted-foreground sm:text-[11px]">

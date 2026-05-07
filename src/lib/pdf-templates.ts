@@ -2,7 +2,13 @@
  * Server-side PDF template generation (Puppeteer). Uses inline SVG so charts print reliably.
  */
 
-import { reportFontsHref, reportHex, getReportPdfStyles } from "./report-theme";
+import {
+  reportFontsHref,
+  reportHex,
+  getReportPdfStyles,
+  pdfAxisScoreHex,
+  pdfVerdictHex,
+} from "./report-theme";
 import { FULL_DIAGNOSTIC_UPGRADE_HOOK, PRO_UPGRADE_STRIP } from "./report-copy";
 import {
   formatIntelScoreFootnote,
@@ -10,8 +16,11 @@ import {
   INTEL_BENCHMARK,
 } from "./report-intelligence";
 import { buildRadarSvg, buildScrollHeatStripSvg } from "./report-charts-svg";
-import { buildAttentionHeatmapFigureHtml } from "./report-heatmap-embed";
-import { buildInsightLayersHtml } from "./insight-layers-report";
+import { buildHeroSnapshotFigureHtml } from "./report-hero-snapshot-html";
+import {
+  buildInsightLayersHtml,
+  buildRevenueLeakCardHtml,
+} from "./insight-layers-report";
 import type { InsightExportData } from "./insight-layers-report";
 import { buildExecutiveDiagnosticInnerHtml } from "./report-diagnostic-section";
 import { scrollDepthNarrative } from "./report-ui";
@@ -25,7 +34,24 @@ import {
   DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
   DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
 } from "@/lib/insight-layers";
-import type { PerformanceGeminiSummary } from "@/types/roast-extras";
+import type {
+  PerformanceGeminiSummary,
+  ScrollEffectiveness,
+  TrafficEstimate,
+} from "@/types/roast-extras";
+import { buildReportSupplementInnerHtml } from "./report-export-supplement";
+import { buildRadarPillarTilesHtml } from "./report-radar-tiles-html";
+import { meanRadarSiteScore, verdictLabelFromSiteScore } from "@/lib/site-score";
+import {
+  averageScoreForCategoryItems,
+  displayNameForCategoryKey,
+  verdictLabelForCategoryAverage,
+  type DetailedAuditRow,
+} from "@/lib/report-category-score";
+import {
+  exportCategoryVerdictColor,
+  exportStatusPillColor,
+} from "@/lib/report-export-status";
 
 interface RoastData extends InsightExportData {
   overall_score?: number;
@@ -64,6 +90,8 @@ interface RoastData extends InsightExportData {
   page_type?: string;
   performance?: PageSpeedSummary | null;
   performanceGemini?: PerformanceGeminiSummary | null;
+  scrollEffectiveness?: ScrollEffectiveness | null;
+  trafficEstimate?: TrafficEstimate | null;
 }
 
 function pdfScoreColor(score: number): string {
@@ -80,6 +108,27 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+export type ReportExportCalculatorInput = {
+  traffic?: number;
+  price?: number;
+  industry?: string;
+};
+
+function resolvePdfCalculatorNumbers(
+  data: RoastData,
+  override?: ReportExportCalculatorInput | null
+): { traffic: number; price: number } {
+  const traffic =
+    override?.traffic ??
+    data.trafficEstimate?.monthlySessions ??
+    DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
+  const pg = Number(data.price_guess);
+  const price =
+    override?.price ??
+    (Number.isFinite(pg) && pg > 0 ? pg : DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD);
+  return { traffic, price };
+}
+
 function strList(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return v.map((x) => String(x));
@@ -87,14 +136,16 @@ function strList(v: unknown): string[] {
 
 export async function generateFreeRoastCertificateHTML(
   data: RoastData,
-  url: string = "https://siteroast.ai"
+  url: string = "https://siteroast.ai",
+  calculator?: ReportExportCalculatorInput | null
 ): Promise<string> {
-  const overallScore = data.overall_score || data.overview?.overallScore || 50;
+  const radarForScore = data.radar_scores || data.radarMetrics || {};
+  const hasRadar = Object.keys(radarForScore).length > 0;
+  const overallScore = hasRadar
+    ? meanRadarSiteScore(radarForScore as Record<string, unknown>)
+    : Number(data.overall_score ?? data.overview?.overallScore) || 50;
   const quickWins = data.quickWins || data.quick_wins || [];
-  const traffic = DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
-  const price = data.price_guess || DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
-  const lift = 0.02;
-  const lost = Math.round(traffic * lift * price * 12);
+  const { traffic, price } = resolvePdfCalculatorNumbers(data, calculator);
   const insiderLines = buildPersonalizedInsiderLines(data as Record<string, unknown>);
   const insiderHtml = insiderLines.length
     ? insiderLines.map((l) => `<p class="report-prose">${esc(l)}</p>`).join("")
@@ -104,21 +155,22 @@ export async function generateFreeRoastCertificateHTML(
   const intelEstEsc = esc(`${INTEL_ESTIMATED_IMPROVEMENT} (illustrative)`);
   const intelBenchEsc = esc(INTEL_BENCHMARK);
 
+  const revenueLeakFreeHtml = buildRevenueLeakCardHtml(data, { traffic, price }, esc);
   const insightFreeHtml = buildInsightLayersHtml(
     data,
     false,
     { traffic, price },
-    esc
+    esc,
+    { includeRevenue: false, includeIntroBlurb: false }
   );
 
   const h = reportHex;
-  const scoreColor = pdfScoreColor(overallScore);
-  const verdictText =
-    overallScore < 50
-      ? "CRITICAL CONDITION"
-      : overallScore < 80
-        ? "NEEDS OPTIMIZATION"
-        : "EXCELLENT";
+  const verdictText = verdictLabelFromSiteScore(
+    Math.round(overallScore),
+    radarForScore as Record<string, unknown>
+  );
+  const verdictColorFree = pdfVerdictHex(verdictText);
+  const scoreColorFree = pdfAxisScoreHex(overallScore);
 
   const execInner = buildExecutiveDiagnosticInnerHtml(data, esc);
   const seoAppendixFree = buildSeoPerformanceAppendixHtml(data, esc);
@@ -162,21 +214,20 @@ export async function generateFreeRoastCertificateHTML(
   <p class="report-meta" style="margin-bottom:28px;">${esc(url)} · ${new Date().toLocaleDateString()}</p>
 
   <h2>Overall score</h2>
-  <p class="report-verdict">${esc(verdictText)}</p>
-  <div class="score score--semantic" style="color:${scoreColor};font-size:68px;font-weight:700;line-height:1;margin-bottom:8px;"><span class="report-figure">${overallScore}</span><span class="score-suffix">/100</span></div>
+  <p class="report-verdict" style="color:${verdictColorFree};">${esc(verdictText)}</p>
+  <div class="score score--semantic" style="color:${scoreColorFree};font-size:68px;font-weight:700;line-height:1;margin-bottom:8px;"><span class="report-figure">${overallScore}</span><span class="score-suffix">/100</span></div>
   <p class="intel-micro">${intelScoreEsc}</p>
 
-  ${execInner ? `<h2>Executive summary &amp; diagnostic</h2>${execInner}` : ""}
+  ${execInner ? `<h2>Executive summary &amp; diagnostic</h2><div class="report-exec-diagnostics">${execInner}</div>` : ""}
 
+  <h2>Revenue leak estimate</h2>
+  ${revenueLeakFreeHtml}
+
+  <h2>Executive insight layers</h2>
+  <p class="muted report-nojustify" style="font-size:0.8125rem;margin-bottom:14px;">Scenario model—not a guarantee. Base uses the 2% benchmark consistent with lost-revenue illustrations elsewhere in this report.</p>
   ${insightFreeHtml}
 
   ${quickWins.length ? `<h2>Quick wins &amp; impact</h2><p class="intel-micro">${intelEstEsc} when prioritized fixes ship (typical range, not guaranteed). ${intelBenchEsc}.</p>${qwHtml}` : ""}
-
-  <h2>Lost revenue (illustrative)</h2>
-  <div class="section" style="margin-top:12px;">
-    <p class="report-prose report-nojustify">At ~${traffic.toLocaleString()} monthly visits and $${price} per conversion (2% missed lift), roughly <strong class="report-figure">$${lost.toLocaleString()}</strong> may be left on the table annually.</p>
-    <p class="intel-micro" style="margin-top:12px;">${intelEstEsc}</p>
-  </div>
 
   <h2>AI Insights</h2>
   <div class="section" style="margin-top:12px;">${insiderHtml}</div>
@@ -185,7 +236,7 @@ export async function generateFreeRoastCertificateHTML(
 
   <div class="locked-section" style="margin-top:28px;">
     <p class="report-label" style="text-align:center;margin-bottom:8px;">Upgrade</p>
-    <p class="report-nojustify">${esc(PRO_UPGRADE_STRIP)} Radar, heatmap, priority matrix, deep dive, and full element audit — ${esc(url)}/billing</p>
+    <p class="report-nojustify">${esc(PRO_UPGRADE_STRIP)} Radar, viewport snapshot, priority matrix, deep dive, and full element audit — ${esc(url)}/billing</p>
     <p class="muted report-nojustify" style="margin-top:10px;font-size:13px;">${esc(FULL_DIAGNOSTIC_UPGRADE_HOOK)}</p>
   </div>
 </body>
@@ -194,31 +245,24 @@ export async function generateFreeRoastCertificateHTML(
 
 export async function generatePaidAgencyReportHTML(
   data: RoastData,
-  url: string = "https://siteroast.ai"
+  url: string = "https://siteroast.ai",
+  calculator?: ReportExportCalculatorInput | null
 ): Promise<string> {
-  const overallScore = data.overall_score || data.overview?.overallScore || 50;
-  const quickWins = data.quickWins || data.quick_wins || [];
   const radarScores = data.radar_scores || data.radarMetrics || {};
+  const hasRadar = Object.keys(radarScores).length > 0;
+  const overallScore = hasRadar
+    ? meanRadarSiteScore(radarScores as Record<string, unknown>)
+    : Number(data.overall_score ?? data.overview?.overallScore) || 50;
+  const quickWins = data.quickWins || data.quick_wins || [];
   const detailedAudit = data.detailedAudit || {};
   const auditItems = data.audit_items || [];
   const pageHeight = data.pageHeight || 3000;
+  const { traffic: pdfTraffic, price: pdfPrice } = resolvePdfCalculatorNumbers(
+    data,
+    calculator
+  );
 
   const h = reportHex;
-
-  const getVerdictText = (score: number): string => {
-    if (score < 50) return "CRITICAL CONDITION";
-    if (score < 80) return "NEEDS OPTIMIZATION";
-    return "EXCELLENT";
-  };
-
-  const categoryNames: Record<string, string> = {
-    ux: "UX & Layout",
-    conversion: "Conversion & Funnel",
-    copy: "Copy & Messaging",
-    visuals: "Visuals & Brand",
-    trust: "Trust & Credibility",
-    speed: "Speed & Technical Health",
-  };
 
   const statusColors: Record<string, string> = {
     Excellent: h.success,
@@ -228,27 +272,19 @@ export async function generatePaidAgencyReportHTML(
     Failed: h.destructive,
   };
 
-  const statusPoints: Record<string, number> = {
-    Excellent: 95,
-    Good: 80,
-    Satisfactory: 60,
-    "Needs Improvement": 35,
-    Failed: 5,
-  };
-
   const categoriesInner = Object.entries(detailedAudit)
     .map(([category, items]) => {
       if (!items || items.length === 0) return "";
-      const categoryName = categoryNames[category.toLowerCase()] || category;
-      const scores = items.map(
-        (item) => statusPoints[String(item.status || "Satisfactory")] || 60
-      );
-      const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+      const categoryName = displayNameForCategoryKey(category);
+      const rows = items as DetailedAuditRow[];
+      const avgScore = averageScoreForCategoryItems(rows);
+      const catVerdict = verdictLabelForCategoryAverage(avgScore);
+      const catVerdictColor = exportCategoryVerdictColor(catVerdict);
 
       const itemsHTML = items
         .map((item) => {
           const status = String(item.status || "Satisfactory");
-          const color = statusColors[status] || h.muted;
+          const pillColor = exportStatusPillColor(status, statusColors);
           const fixRaw = item.fix;
           const fixText =
             typeof fixRaw === "object" && fixRaw !== null
@@ -262,7 +298,7 @@ export async function generatePaidAgencyReportHTML(
           return `<div class="quick-win">
             <div class="insight-card__head" style="margin-bottom:8px;">
               <span class="report-card__title report-nojustify">${esc(name)}</span>
-              <span style="padding:4px 10px;border-radius:4px;background-color:${color}22;color:${color};font-size:11px;font-weight:600;">${esc(status)}</span>
+              <span style="padding:4px 10px;border-radius:4px;background-color:${pillColor}22;color:${pillColor};font-size:11px;font-weight:600;">${esc(status)}</span>
             </div>
             ${item.rationale ? `<p class="report-prose" style="font-size:14px;margin:0 0 10px;">${esc(String(item.rationale))}</p>` : ""}
             ${fixText ? `<p class="report-nojustify" style="font-size:14px;"><span class="report-label" style="display:inline;margin-right:6px;">Action</span> ${esc(fixText)}</p>` : ""}
@@ -270,12 +306,27 @@ export async function generatePaidAgencyReportHTML(
         })
         .join("");
 
-      return `<h3>${esc(categoryName)} <span class="report-figure" style="font-size:1.25rem;color:${pdfScoreColor(avgScore)};">${avgScore}/100</span></h3>
+      return `<h3>${esc(categoryName)} <span class="report-figure" style="font-size:1.25rem;color:${pdfAxisScoreHex(avgScore)};">${avgScore}/100</span> <span style="color:${catVerdictColor};font-size:0.8125rem;font-weight:600;">${esc(catVerdict)}</span></h3>
       ${itemsHTML}`;
     })
     .join("");
 
-  const matrixRows =
+  const matrixExtraRowsStr =
+    quickWins.length > 12
+      ? quickWins
+          .slice(12)
+          .map(
+            (win, idx) => `
+        <tr>
+          <td>#${idx + 13}</td>
+          <td>${esc(String(win.title || win.elementName || "Quick win"))}</td>
+          <td style="color: ${h.muted};">${esc(String(win.effort || "—"))}</td>
+          <td style="color: ${h.muted};">${esc(String(win.lift || "—"))}</td>
+        </tr>`
+          )
+          .join("")
+      : "";
+  const matrixRowsFull =
     quickWins.length > 0
       ? quickWins
           .slice(0, 12)
@@ -288,24 +339,25 @@ export async function generatePaidAgencyReportHTML(
           <td style="color: ${h.muted};">${esc(String(win.lift || "—"))}</td>
         </tr>`
           )
-          .join("")
+          .join("") + matrixExtraRowsStr
       : `<tr><td colspan="4" style="color:${h.muted};">No quick wins in dataset — see deep dive.</td></tr>`;
 
-  const hasRadar = Object.keys(radarScores).length > 0;
   const radarSvg = hasRadar
     ? buildRadarSvg(radarScores as Record<string, number>, 300)
     : `<p class="muted">No radar metrics in export.</p>`;
   const scrollSvg = buildScrollHeatStripSvg(pageHeight);
   const scrollCap = scrollDepthNarrative(data.audited_url, pageHeight);
-  const heatSrc = data.heroScreenshot ? heroScreenshotDataUrl(data.heroScreenshot) : null;
-  const heatBody = buildAttentionHeatmapFigureHtml(heatSrc, {
+  const snapSrc = data.heroScreenshot ? heroScreenshotDataUrl(data.heroScreenshot) : null;
+  const snapBody = buildHeroSnapshotFigureHtml(snapSrc, {
     borderColor: reportHex.border,
   });
 
   const auditItemsHTML = auditItems
     .map((item) => {
       const el = esc(String(item.element || "Element"));
-      const st = esc(String(item.status || "—"));
+      const stRaw = String(item.status || "—");
+      const st = esc(stRaw);
+      const pillColor = exportStatusPillColor(stRaw, statusColors);
       const rationale = item.rationale ? esc(String(item.rationale)) : "";
       const working = strList(item.working);
       const notWorking = strList(item.not_working);
@@ -313,12 +365,29 @@ export async function generatePaidAgencyReportHTML(
       const impact = item.expected_impact
         ? esc(String(item.expected_impact))
         : "";
+      const workingBlock =
+        working.length > 0
+          ? `<div style="border-radius:8px;border:1px solid ${h.border};background:${h.surfaceMuted};padding:10px 12px;margin:8px 0;">
+          <p class="report-label">What&apos;s working</p>
+          <ul style="margin:6px 0 0;padding-left:1.15rem;font-size:0.8125rem;line-height:1.5;">${working.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+        </div>`
+          : "";
+      const notBlock =
+        notWorking.length > 0
+          ? `<div style="border-radius:8px;border:1px solid ${h.destructive}33;background:${h.destructive}0d;padding:10px 12px;margin:8px 0;">
+          <p class="report-label" style="color:${h.destructive};">What&apos;s not working</p>
+          <ul style="margin:6px 0 0;padding-left:1.15rem;font-size:0.8125rem;line-height:1.5;">${notWorking.map((s) => `<li>${esc(s)}</li>`).join("")}</ul>
+        </div>`
+          : "";
       return `<div class="quick-win">
-        <div class="report-card__title report-nojustify">${el} <span class="muted">— ${st}</span></div>
+        <div class="insight-card__head" style="margin-bottom:8px;">
+          <span class="report-card__title report-nojustify">${el}</span>
+          <span style="padding:4px 10px;border-radius:4px;background-color:${pillColor}22;color:${pillColor};font-size:11px;font-weight:600;">${st}</span>
+        </div>
         ${rationale ? `<p class="report-prose" style="font-size:14px;margin:8px 0;">${rationale}</p>` : ""}
-        ${working.length ? `<p class="report-nojustify" style="font-size:14px;"><span class="report-label" style="display:inline;margin-right:6px;">Working</span> ${working.map((s) => esc(s)).join("; ")}</p>` : ""}
-        ${notWorking.length ? `<p class="report-nojustify" style="font-size:14px;"><span class="report-label" style="display:inline;margin-right:6px;">Not working</span> ${notWorking.map((s) => esc(s)).join("; ")}</p>` : ""}
-        ${fix ? `<p class="report-nojustify" style="font-size:14px;"><span class="report-label" style="display:inline;margin-right:6px;">Fix</span> ${fix}</p>` : ""}
+        ${workingBlock}
+        ${notBlock}
+        ${fix ? `<p class="report-nojustify" style="font-size:14px;margin-top:8px;"><span class="report-label" style="display:inline;margin-right:6px;">Fix</span> ${fix}</p>` : ""}
         ${impact ? `<p class="muted report-nojustify" style="font-size:14px;"><span class="report-label" style="display:inline;margin-right:6px;">Impact</span> ${impact}</p>` : ""}
       </div>`;
     })
@@ -329,13 +398,28 @@ export async function generatePaidAgencyReportHTML(
   );
   const paidIntelEstEsc = esc(`${INTEL_ESTIMATED_IMPROVEMENT} (illustrative)`);
 
-  const pdfTraffic = DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS;
-  const pdfPrice = data.price_guess || DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD;
-  const insightPaidHtml = buildInsightLayersHtml(
+  const revenuePageHtml = buildRevenueLeakCardHtml(
+    data,
+    { traffic: pdfTraffic, price: pdfPrice },
+    esc
+  );
+  const insightLayersOnlyHtml = buildInsightLayersHtml(
     data,
     true,
     { traffic: pdfTraffic, price: pdfPrice },
-    esc
+    esc,
+    { includeRevenue: false, includeOuterHeading: false, includeIntroBlurb: false }
+  );
+
+  const verdictPaidText = verdictLabelFromSiteScore(
+    Math.round(overallScore),
+    radarScores as Record<string, unknown>
+  );
+  const verdictPaidColor = pdfVerdictHex(verdictPaidText);
+  const pillarTilesHtml = buildRadarPillarTilesHtml(
+    radarScores as Record<string, number>,
+    esc,
+    hasRadar
   );
 
   const execInner = buildExecutiveDiagnosticInnerHtml(data, esc);
@@ -359,11 +443,8 @@ export async function generatePaidAgencyReportHTML(
     <div class="report-cover-pdf">
       <h1>${BRAND_NAME}</h1>
       <p class="report-cover-subtitle">Conversion audit — full report</p>
-      <div class="score score--semantic" style="color:${pdfScoreColor(overallScore)};"><span class="report-figure">${overallScore}</span><span class="score-suffix">/100</span></div>
-      <p class="intel-micro">${paidIntelScoreEsc}</p>
-      <p class="report-verdict" style="font-size:15px;margin-top:16px;">${esc(getVerdictText(overallScore))}</p>
-      <p class="report-meta report-nojustify" style="margin-top:20px;word-break:break-all;">${esc(url)}</p>
-      <p class="report-meta report-nojustify" style="margin-top:20px;">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
+      <p class="report-meta report-nojustify" style="margin-top:28px;word-break:break-all;">${esc(url)}</p>
+      <p class="report-meta report-nojustify" style="margin-top:16px;">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</p>
     </div>
   </div>`;
 
@@ -371,18 +452,38 @@ export async function generatePaidAgencyReportHTML(
     execInner.trim().length > 0
       ? `<div class="report-page">
     <h2>Executive summary &amp; diagnostic</h2>
-    ${execInner}
+    <div class="report-exec-diagnostics">${execInner}</div>
   </div>`
       : "";
 
-  const insightPage = `<div class="report-page">${insightPaidHtml}</div>`;
+  const revenuePage = `<div class="report-page">
+    <h2>Revenue leak estimate</h2>
+    ${revenuePageHtml}
+  </div>`;
+
+  const insightPage = `<div class="report-page">
+    <h2>Executive insight layers</h2>
+    <p class="muted report-nojustify" style="font-size:0.8125rem;margin-bottom:14px;">Scenario model—not a guarantee. Base uses the 2% benchmark consistent with lost-revenue illustrations elsewhere in this report.</p>
+    ${insightLayersOnlyHtml}
+  </div>`;
+
+  const siteScorePage = `<div class="report-page">
+    <h2>Site Score</h2>
+    <p class="report-verdict" style="font-size:13px;letter-spacing:0.06em;color:${verdictPaidColor};margin-bottom:10px;">${esc(verdictPaidText)}</p>
+    <div class="score score--semantic" style="color:${pdfAxisScoreHex(overallScore)};font-size:72px;font-weight:700;line-height:1;margin-bottom:8px;"><span class="report-figure">${overallScore}</span><span class="score-suffix">/100</span></div>
+    <p class="intel-micro">${paidIntelScoreEsc}</p>
+    <p class="chart-block__title" style="margin-top:22px;">Pillar scores</p>
+    ${pillarTilesHtml}
+    <div class="chart-box">${radarSvg}</div>
+    <p class="chart-block__caption">Six pillars on one scale; same basis as the live report.</p>
+  </div>`;
 
   const matrixPage = `<div class="report-page">
     <h2>Priority matrix</h2>
     <p class="intel-micro" style="margin-bottom:14px;">${paidIntelEstEsc} · ${esc(INTEL_BENCHMARK)}</p>
     <table class="report-matrix">
       <thead><tr><th>#</th><th>Element</th><th>Effort</th><th>Impact</th></tr></thead>
-      <tbody>${matrixRows}</tbody>
+      <tbody>${matrixRowsFull}</tbody>
     </table>
   </div>`;
 
@@ -397,41 +498,57 @@ export async function generatePaidAgencyReportHTML(
   const visualPage = `<div class="report-page">
     <h2>Visual analysis</h2>
     <div class="chart-block">
-      <p class="chart-block__title">Site Score</p>
-      <div class="chart-box">${radarSvg}</div>
-      <p class="chart-block__caption">Category scores on a common scale for quick comparison.</p>
-    </div>
-    <div class="chart-block">
       <p class="chart-block__title">Scroll profile</p>
       <div class="chart-box">${scrollSvg}</div>
       <p class="chart-block__caption">${esc(scrollCap.situation)} ${esc(scrollCap.action)}</p>
     </div>
     <div class="chart-block">
-      <p class="chart-block__title">Attention heatmap</p>
-      ${heatBody}
-      <p class="chart-block__caption">${data.heroScreenshot ? "Jet-style attention overlay on first viewport (illustrative)." : "Grid heatmap schematic when no capture is embedded."}</p>
+      <p class="chart-block__title">First viewport snapshot</p>
+      ${snapBody}
+      <p class="chart-block__caption">${data.heroScreenshot ? "Above-the-fold capture (single chunk)." : "No screenshot embedded."}</p>
     </div>
   </div>`;
+
+  const categorySub =
+    "Together they answer what this means for UX, conversion, copy, and the other audit dimensions—rolled up by category.";
+  const elementSub =
+    "Together they answer what each surfaced component is doing—status, rationale, what works, gaps, and fixes.";
+
+  const deepDivePage =
+    Object.keys(detailedAudit).length > 0 && categoriesInner.trim().length > 0
+      ? `<div class="report-page">
+    <h2>Category deep dive</h2>
+    <p class="muted report-nojustify" style="font-size:0.8125rem;margin-bottom:14px;">${esc(categorySub)}</p>
+    <div class="report-deep-dive-body">${categoriesInner}</div>
+  </div>`
+      : "";
 
   const auditPage =
     auditItems.length > 0
       ? `<div class="report-page">
     <h2>Element-by-element audit</h2>
+    <p class="muted report-nojustify" style="font-size:0.8125rem;margin-bottom:14px;">${esc(elementSub)}</p>
     ${auditItemsHTML}
-  </div>`
-      : "";
-
-  const deepDivePage =
-    Object.keys(detailedAudit).length > 0 && categoriesInner.trim().length > 0
-      ? `<div class="report-page">
-    <h2>Deep dive findings</h2>
-    <div class="report-deep-dive-body">${categoriesInner}</div>
   </div>`
       : "";
 
   const seoAppendixPaid = buildSeoPerformanceAppendixHtml(data, esc);
   const seoPage = seoAppendixPaid
     ? `<div class="report-page">${seoAppendixPaid}</div>`
+    : "";
+
+  const supplementInner = buildReportSupplementInnerHtml(
+    {
+      scrollEffectiveness: data.scrollEffectiveness ?? null,
+      trafficEstimate: data.trafficEstimate ?? null,
+    },
+    esc
+  );
+  const supplementPage = supplementInner.trim()
+    ? `<div class="report-page">
+    <h2>Supplementary audit coverage</h2>
+    ${supplementInner}
+  </div>`
     : "";
 
   return `<!DOCTYPE html>
@@ -445,13 +562,16 @@ export async function generatePaidAgencyReportHTML(
 <body>
   ${coverPage}
   ${execPage}
+  ${revenuePage}
   ${insightPage}
+  ${siteScorePage}
   ${matrixPage}
   ${quickWinsPage}
   ${visualPage}
-  ${auditPage}
   ${deepDivePage}
+  ${auditPage}
   ${seoPage}
+  ${supplementPage}
   <footer class="report-pdf-footer">
     <p>Confidential — ${BRAND_NAME}</p>
     <p>${new Date().toISOString()}</p>

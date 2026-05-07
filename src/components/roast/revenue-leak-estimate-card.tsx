@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { RevenueLeakEstimate } from "@/types/insight-layers";
 import { annualLeakUsd } from "@/lib/insight-layers";
+import {
+  revenueScenarioAmountClass,
+  revenueScenarioTileClass,
+  type RevenueScenarioKey,
+} from "@/lib/revenue-scenario-accents";
 import { DollarSign } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Props = {
   estimate: RevenueLeakEstimate;
@@ -98,15 +104,25 @@ export function RevenueLeakEstimateCard({
             return (
               <div
                 key={key}
-                className="rounded-lg border border-border-muted bg-surface-2/30 px-3 py-2.5"
+                className={cn(
+                  "rounded-lg border px-3 py-2.5",
+                  revenueScenarioTileClass(key as RevenueScenarioKey)
+                )}
               >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
                     {key === "base" ? "Base" : key === "low" ? "Low" : "High"}
                   </span>
-                  <span className="text-[10px] text-muted-foreground">+{pct}%</span>
+                  <span className={cn("text-[10px]", revenueScenarioAmountClass(key as RevenueScenarioKey))}>
+                    +{pct}%
+                  </span>
                 </div>
-                <p className="mt-1 font-mono text-lg font-semibold tabular-nums text-primary">
+                <p
+                  className={cn(
+                    "mt-1 font-mono text-lg font-semibold tabular-nums",
+                    revenueScenarioAmountClass(key as RevenueScenarioKey)
+                  )}
+                >
                   ${annual.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </p>
               </div>

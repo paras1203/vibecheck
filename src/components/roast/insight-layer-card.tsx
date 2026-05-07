@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { InsightLayerBlock, InsightPriority, ScoreTriple } from "@/types/insight-layers";
 import { cn } from "@/lib/utils";
+import { radarScoreValueClass } from "@/lib/radar-axis-scores";
 
 function priorityLabel(p: InsightPriority): string {
   switch (p) {
@@ -38,7 +39,7 @@ function TripleRow({ label, t }: { label: string; t: ScoreTriple }) {
   return (
     <div className="grid grid-cols-[minmax(0,1.2fr)_auto_auto] gap-x-2 gap-y-1 border-b border-border-muted py-2 text-xs last:border-0 sm:grid-cols-[minmax(0,1.4fr)_auto_auto_minmax(0,1fr)]">
       <span className="font-medium text-foreground">{label}</span>
-      <span className="font-mono tabular-nums text-muted-foreground">
+      <span className={cn("font-mono tabular-nums", radarScoreValueClass(t.current))}>
         {t.current}
       </span>
       <span className="font-mono tabular-nums text-primary">→ {t.proposed}</span>
@@ -85,7 +86,14 @@ export function InsightLayerCard({ title, layer, showSubscores }: Props) {
           <div className="flex flex-wrap items-baseline gap-3 text-sm">
             <span>
               <span className="text-muted-foreground">Current </span>
-              <span className="font-mono font-semibold tabular-nums">{composite.current}</span>
+              <span
+                className={cn(
+                  "font-mono font-semibold tabular-nums",
+                  radarScoreValueClass(composite.current)
+                )}
+              >
+                {composite.current}
+              </span>
             </span>
             <span>
               <span className="text-muted-foreground">Proposed </span>

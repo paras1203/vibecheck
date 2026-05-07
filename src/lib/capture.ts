@@ -261,44 +261,17 @@ export async function captureScreenshotFromUrl(
       });
       console.log("[DEBUG] Hidden sticky/fixed elements for seamless stitching");
 
-      // Precise Rolling Screenshot Capture (exact from Python lines 1911-1946)
+      // First viewport only (single chunk) — used as hero snapshot for audit + LLM visuals
       const screenshots: string[] = [];
-      const sanityLimit = 15;
-      let currentScroll = 0;
-      let chunkIndex = 0;
-
-      let totalHeight = Number(
-        await page.evaluate("document.body.scrollHeight")
-      );
-
-      while (currentScroll < totalHeight && chunkIndex < sanityLimit) {
-        if (chunkIndex === 0) {
-          await page.evaluate("window.scrollTo(0, 0)");
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        }
-
-        const screenshotBytes = (await page.screenshot({
-          type: "png",
-          fullPage: false,
-        })) as Buffer;
-
-        screenshots.push(screenshotBytes.toString("base64"));
-
-        chunkIndex++;
-        if (chunkIndex >= 2) {
-          break; // Limited to 2 chunks (exact from Python line 1936)
-        }
-
-        currentScroll += viewportHeight;
-        await page.mouse.wheel({ deltaY: viewportHeight });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        totalHeight = Number(
-          await page.evaluate("document.body.scrollHeight")
-        );
-      }
-
-      console.log(`[DEBUG] Captured ${screenshots.length} chunks successfully`);
+      await page.evaluate("window.scrollTo(0, 0)");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const screenshotBytes = (await page.screenshot({
+        type: "jpeg",
+        quality: 82,
+        fullPage: false,
+      })) as Buffer;
+      screenshots.push(screenshotBytes.toString("base64"));
+      console.log("[DEBUG] Captured first viewport only (1 chunk)");
       
       // Get page height before closing browser
       const pageHeight = Number(

@@ -1,5 +1,5 @@
 {
-  "page_title": "SiteRoast - Brutal Conversion Audits",
+  "page_title": "vibecheck - Brutal Conversion Audits",
   "page_icon": "🔥",
   "layout": "wide",
   "description": "Complete structure of the landing page after clicking 'Roast My Site' button and audit is complete",
@@ -52,7 +52,7 @@
         {
           "component": "Title",
           "type": "markdown",
-          "content": "SiteRoast",
+          "content": "Vibecheck",
           "class": "main-title",
           "styling": "Gradient text, centered"
         },

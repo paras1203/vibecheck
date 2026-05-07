@@ -29,6 +29,8 @@ import {
   analyzeLegalSignalsFromHtml,
   mergeLegalComplianceWithSignals,
 } from "@/lib/legal-html-signals";
+import { syncOverallScoreWithRadarPayload } from "@/lib/site-score";
+import { recordAuditLogEntry } from "@/lib/audit-log-server";
 
 /**
  * 1:1 Logic Migration from main.py
@@ -68,6 +70,71 @@ interface ImageInput {
   mimeType?: string;
 }
 
+const AUDIT_WORKER_GLOBAL_CRO_RULES = `CRITICAL THINKING RULES:
+
+* No generic advice (e.g. improve readability, better CTA)
+* Every issue must map to user behavior (confusion, friction, hesitation)
+* Identify where users drop off or fail to act
+* If issue is not specific, remove it
+* Focus on high-impact issues only
+
+BUSINESS IMPACT:
+
+* Explain why this reduces conversions
+* Use decisive language (no "might", "could")
+`;
+
+const AUDIT_WORKER_VISUAL_FOCUS = `PRIORITIZATION:
+- Focus on above-the-fold experience first (hero, headline, primary CTA).
+- Identify where attention is lost, misdirected, or diluted before secondary sections.
+
+`;
+
+const AUDIT_WORKER_COPY_FOCUS = `COPY PRIORITIES:
+- Prioritize headline, value proposition, and CTA clarity.
+- Where you suggest a fix, always include a BEFORE → AFTER rewrite in the "example" field (pattern: BEFORE: ... AFTER: ...).
+- Focus on decision friction: what makes users hesitate before converting.
+
+`;
+
+const AUDIT_WORKER_TECH_FOCUS = `TECH FILTER:
+- Ignore minor best-practice nitpicks that do not materially affect conversions.
+- Only include issues that materially affect page speed, SEO visibility, forms, or trust/compliance signals.
+
+`;
+
+const GENERIC_EXPECTED_IMPACT = "Expected conversion improvement";
+const DEFAULT_QUICK_WIN_LIFT = "Improves clarity and reduces user hesitation";
+
+function normalizeConsultantLanguage(text: string): string {
+  if (!text || typeof text !== "string") return text;
+  return text
+    .replace(/\bThis could\b/gi, "This causes")
+    .replace(/\bThis might\b/gi, "This leads to")
+    .replace(/\bConsider improving\b/gi, "Fix by");
+}
+
+function formatQuickWinFixText(
+  quickFixRaw: string,
+  notWorkingLines: string[]
+): string {
+  const action = (quickFixRaw || "Review and improve").trim();
+  const inner = action.replace(/^fix\s*:\s*/i, "").trim();
+  const diag =
+    notWorkingLines.find((s) => s && String(s).trim().length > 0)?.trim().slice(0, 120) ||
+    "";
+  if (diag) {
+    return `Fix: ${diag} → ${inner}`;
+  }
+  return `Fix: ${inner}`;
+}
+
+function resolveQuickWinLift(expectedImpact: string | undefined): string {
+  const e = (expectedImpact || "").trim();
+  if (!e || e === GENERIC_EXPECTED_IMPACT) return DEFAULT_QUICK_WIN_LIFT;
+  return e;
+}
+
 /**
  * Worker 1: Analyze visual design elements from screenshots.
  * Returns unified JSON schema with items array containing: Visual Hierarchy, Aesthetics, CTA Visibility, Trust Signals, Mobile Layout.
@@ -104,6 +171,7 @@ async function analyzeVisuals(
     // EXACT PROMPT FROM PYTHON - WORD FOR WORD (lines 829-964)
     const prompt = `Act as a Senior UX Designer. Analyze these screenshots of a landing page.
 
+${AUDIT_WORKER_VISUAL_FOCUS}
 Return ONLY valid JSON in this exact format (NO other keys, NO commentary):
 {
   "items": [
@@ -230,6 +298,7 @@ Return ONLY valid JSON in this exact format (NO other keys, NO commentary):
   ]
 }
 
+${AUDIT_WORKER_GLOBAL_CRO_RULES}
 CRITICAL RULES:
 - Use AT MOST 3 items per element analyzed (aim for 8 items total as shown above)
 - radarCategory MUST be exactly: "ux", "conversion", "visuals", "trust", "speed" (lowercase)
@@ -313,6 +382,7 @@ async function analyzeCopy(
     // EXACT PROMPT FROM PYTHON - WORD FOR WORD (lines 1005-1112)
     const prompt = `Act as a Lead Copywriter. Analyze this landing page text content:
 
+${AUDIT_WORKER_COPY_FOCUS}
 ${cleanText}
 
 Return ONLY valid JSON in this exact format (NO other keys, NO commentary):
@@ -411,6 +481,7 @@ Return ONLY valid JSON in this exact format (NO other keys, NO commentary):
   ]
 }
 
+${AUDIT_WORKER_GLOBAL_CRO_RULES}
 CRITICAL RULES:
 - Use AT MOST 3 items per element analyzed (aim for 6 items total as shown above)
 - radarCategory MUST be exactly: "ux", "conversion", "copy", "visuals", "trust", "speed" (lowercase)
@@ -494,6 +565,7 @@ async function analyzeTech(
     // EXACT PROMPT FROM PYTHON - WORD FOR WORD (lines 1158-1235)
     const prompt = `Act as a Technical SEO Expert. Analyze this HTML source code:
 
+${AUDIT_WORKER_TECH_FOCUS}
 ${cleanHtml}
 
 Return ONLY valid JSON in this exact format (NO other keys, NO commentary):
@@ -562,6 +634,7 @@ Return ONLY valid JSON in this exact format (NO other keys, NO commentary):
   ]
 }
 
+${AUDIT_WORKER_GLOBAL_CRO_RULES}
 CRITICAL RULES:
 - Use AT MOST 3 items per element analyzed (aim for 4 items total as shown above)
 - radarCategory MUST be exactly: "ux", "conversion", "copy", "visuals", "trust", "speed" (lowercase)
@@ -653,6 +726,35 @@ function calculateBadnessScore(item: any): number {
     }
     return 10;
   }
+}
+
+function buildTopPriorityIssues(pool: any[]): any[] {
+  const hi = pool.filter(
+    (item) =>
+      item.impact === "HI" &&
+      (item.status === "Failed" || item.status === "Needs Improvement")
+  );
+  hi.sort((a, b) => {
+    const af = a.status === "Failed" ? 0 : 1;
+    const bf = b.status === "Failed" ? 0 : 1;
+    if (af !== bf) return af - bf;
+    return calculateBadnessScore(b) - calculateBadnessScore(a);
+  });
+  const picked: any[] = [];
+  for (const it of hi) {
+    if (picked.length >= 3) break;
+    picked.push(it);
+  }
+  if (picked.length < 3) {
+    const rest = [...pool]
+      .filter((it) => !picked.includes(it))
+      .sort((a, b) => calculateBadnessScore(b) - calculateBadnessScore(a));
+    for (const it of rest) {
+      if (picked.length >= 3) break;
+      picked.push(it);
+    }
+  }
+  return picked.slice(0, 3);
 }
 
 /**
@@ -903,11 +1005,11 @@ RAW CONTENT FROM THE WEBSITE:
 - First Paragraph: "${rawContent.firstParagraph.substring(0, 200)}"
 `.trim();
 
-      const systemInstruction = `You are a senior conversion strategist and CRO lead auditing a commercial page. Your tone is sharp, analytical, confident, and business-focused. No sarcasm, no mockery, no rant voice.
+      const systemInstruction = `You are a senior conversion strategist and CRO lead auditing a commercial page. Speak like you are diagnosing a revenue problem: direct, decisive, and evidence-backed. The page is underperforming until proven otherwise by the audit—frame missed opportunity and conversion loss, not generic design critique. No sarcasm, no mockery, no rant voice. Avoid hedging or soft language ("might", "could", "perhaps", "may").
 
 Return exactly four segments of plain text separated by "|||||" (five pipe characters) in this order:
-1) EXECUTIVE_SUMMARY — For decision-makers. Start with a direct line on how the page is performing vs. the audit (e.g. underperforming on clarity, trust, or conversion). Then list 2–3 numbered critical failures tied to the failed audit items (use their themes). Add one sentence on business impact (conversion leakage, trust, decision friction—qualitative only; do not invent dollar figures). End with one sentence giving clear direction on what to fix first and why. Minimum ~55 words.
-2) DIAGNOSTIC_ANALYSIS — Layered analysis: observations grounded in the raw page content (quote or paraphrase H1, buttons, hero copy where relevant), implications for conversion, then prioritized actions. Minimum ~120 words. Professional prose.
+1) EXECUTIVE_SUMMARY — For decision-makers. The FIRST line MUST clearly state that the page is underperforming (name clarity, trust, conversion, or a combination). Then list 2–3 numbered critical failures tied to the failed audit items (use their themes). Add one sentence on business impact (lost conversions, hesitation, friction—qualitative only; do not invent dollar figures). End with one sentence stating what to fix first and why. Minimum ~55 words.
+2) DIAGNOSTIC_ANALYSIS — Layered analysis: observations grounded in the raw page content (quote or paraphrase H1, buttons, hero copy where relevant), implications for conversion, then prioritized actions. Tie issues to hesitation and drop-off. Minimum ~120 words. Professional prose.
 3) ASSESSMENT — 2–3 lines: concise strategic verdict.
 4) NEXT_STEPS — 1–3 lines: professional CTA to upgrade for full detail. You MUST include this exact sentence verbatim: "Full diagnostic includes exact rewrite, layout fixes, and conversion strategy."
 
@@ -926,8 +1028,8 @@ OUTPUT: Four segments separated by ||||| exactly:
 EXECUTIVE_SUMMARY ||||| DIAGNOSTIC_ANALYSIS ||||| ASSESSMENT ||||| NEXT_STEPS
 
 Rules:
-- EXECUTIVE_SUMMARY: Numbered 2–3 critical failures aligned with the audit list; impact sentence; direction sentence.
-- DIAGNOSTIC_ANALYSIS: Substance over volume; cite page copy where it helps; no snark.
+- EXECUTIVE_SUMMARY: First line must clearly say the page is underperforming; then 2–3 numbered critical failures aligned with the audit list; one line on business impact (lost conversions / hesitation / friction); final line on what to fix first and why.
+- DIAGNOSTIC_ANALYSIS: Substance over volume; cite page copy where it helps; no snark; tie to revenue and user behavior.
 - ASSESSMENT: Sharp and short.
 - NEXT_STEPS: Include the exact required upgrade sentence and invite full report access.
 
@@ -969,7 +1071,7 @@ ${userPrompt}`;
           userPrompt,
           systemInstruction,
           {
-            temperature: 0.65,
+            temperature: 0.5,
             topP: 0.95,
             topK: 40,
             maxOutputTokens: 8192,
@@ -1024,10 +1126,16 @@ ${userPrompt}`;
       
       if (roastText.includes(separator)) {
         const parts = roastText.split(separator);
-        hook = stripNarrativeSegmentLabels(parts[0]?.trim() || "");
+        hook = normalizeConsultantLanguage(
+          stripNarrativeSegmentLabels(parts[0]?.trim() || "")
+        );
         script = stripNarrativeSegmentLabels(parts[1]?.trim() || "");
-        verdict = stripNarrativeSegmentLabels(parts[2]?.trim() || "");
-        closer = stripNarrativeSegmentLabels(parts[3]?.trim() || "");
+        verdict = normalizeConsultantLanguage(
+          stripNarrativeSegmentLabels(parts[2]?.trim() || "")
+        );
+        closer = normalizeConsultantLanguage(
+          stripNarrativeSegmentLabels(parts[3]?.trim() || "")
+        );
         
         console.log("[DEBUG] Successfully parsed 4-part narrative format using separator:", separator);
         console.log("[DEBUG] Parts count:", parts.length);
@@ -1049,6 +1157,7 @@ ${userPrompt}`;
           const lowerLine = line.toLowerCase();
           return !legalTerms.some(term => lowerLine.includes(term));
         }).join('\n').trim();
+        script = normalizeConsultantLanguage(script);
         
         // Build roastSummaryJson with new format
         roastSummaryJson = {
@@ -1065,16 +1174,23 @@ ${userPrompt}`;
         // Fallback: If format is wrong, try to extract parts manually
         console.warn("[WARN] Script format missing '|||||' separators, attempting fallback parsing");
         const lines = roastText.split("\n").filter((line) => line.trim().length > 0);
-        hook = stripNarrativeSegmentLabels(lines[0] || "");
+        hook = normalizeConsultantLanguage(
+          stripNarrativeSegmentLabels(lines[0] || "")
+        );
         script = stripNarrativeSegmentLabels(lines.slice(1, -2).join("\n") || "");
-        verdict = stripNarrativeSegmentLabels(lines[lines.length - 2] || "");
-        closer = stripNarrativeSegmentLabels(lines[lines.length - 1] || "");
+        verdict = normalizeConsultantLanguage(
+          stripNarrativeSegmentLabels(lines[lines.length - 2] || "")
+        );
+        closer = normalizeConsultantLanguage(
+          stripNarrativeSegmentLabels(lines[lines.length - 1] || "")
+        );
         
         const legalTerms = ['legal compliance', 'GDPR', 'privacy policy', 'privacy policies', 'terms and conditions', 'cookie policy', 'disclaimer', 'legal', 'compliance'];
         script = script.split('\n').filter(line => {
           const lowerLine = line.toLowerCase();
           return !legalTerms.some(term => lowerLine.includes(term));
         }).join('\n').trim();
+        script = normalizeConsultantLanguage(script);
         
         roastSummaryJson = {
           hook: hook,
@@ -1229,25 +1345,47 @@ Return JSON only per the schema.`;
   const itemsWithScores = nonLegalItems.map((item) => [item, calculateBadnessScore(item)] as const);
   const sortedItems = itemsWithScores.sort((a, b) => b[1] - a[1]);
 
+  const topPriorityIssues = buildTopPriorityIssues(nonLegalItems);
+  console.debug(
+    "[topPriorityIssues]",
+    topPriorityIssues.map((i) => (i as { elementName?: string }).elementName ?? "?")
+  );
+
   const quickWins: any[] = [];
-  for (const [item, score] of sortedItems.slice(0, 4)) {
+  for (const [item] of sortedItems.slice(0, 4)) {
     const notWorking = item.notWorking || [];
+    const nwArr = Array.isArray(notWorking) ? notWorking : [];
     const fix = item.fix || {};
+    const quickFixRaw =
+      typeof fix === "object" && fix !== null
+        ? fix.quickFix || "Review and improve"
+        : String(fix || "Review and improve");
+    const exampleStr =
+      typeof fix === "object" && fix !== null ? fix.example || "" : "";
+    const liftRaw =
+      typeof fix === "object" && fix !== null ? fix.expectedImpact : undefined;
+    const problemRaw =
+      nwArr.length > 0 ? nwArr.slice(0, 2).join("; ") : "Review and improve";
+    let fixOut = formatQuickWinFixText(quickFixRaw, nwArr.map((s) => String(s)));
+    let liftOut = resolveQuickWinLift(
+      typeof liftRaw === "string" ? liftRaw : undefined
+    );
+    let problemOut = problemRaw;
+    fixOut = normalizeConsultantLanguage(fixOut);
+    liftOut = normalizeConsultantLanguage(liftOut);
+    problemOut = normalizeConsultantLanguage(problemOut);
+    const exampleOut = /BEFORE\s*:/i.test(exampleStr)
+      ? exampleStr
+      : normalizeConsultantLanguage(exampleStr);
+
     quickWins.push({
       title: item.elementName || "Fix Required",
       elementName: item.elementName || "Fix Required",
-      problem: notWorking.length > 0 ? notWorking.slice(0, 2).join("; ") : "Review and improve",
-      fix:
-        typeof fix === "object" && fix !== null
-          ? fix.quickFix || "Review and improve"
-          : String(fix || "Review and improve"),
-      example:
-        typeof fix === "object" && fix !== null ? fix.example || "" : "",
+      problem: problemOut,
+      fix: fixOut,
+      example: exampleOut,
       effort: "15min",
-      lift:
-        typeof fix === "object" && fix !== null
-          ? fix.expectedImpact || "Expected conversion improvement"
-          : "Expected conversion improvement",
+      lift: liftOut,
     });
   }
 
@@ -1432,6 +1570,9 @@ Return JSON only per the schema.`;
  * Accepts { url: string, device?: 'desktop' | 'mobile' }
  * Performs BOTH Puppeteer Scraping AND Gemini Analysis in a single execution chain
  */
+const logRoastTiming =
+  process.env.ROAST_TIMING_LOG === "1" || process.env.ROAST_TIMING_LOG === "true";
+
 export async function POST(request: NextRequest) {
   let chargeUid: string | null = null;
   let chargeCost = 0;
@@ -1456,6 +1597,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const wall = Date.now();
     const idToken =
       typeof body.idToken === "string" && body.idToken.trim() ? body.idToken.trim() : "";
     let creditsRemaining: number | undefined;
@@ -1505,19 +1647,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const authDebitMs = Date.now() - wall;
+    const tCaptureStart = Date.now();
+
     console.log(`[DEBUG] Starting roast generation for URL: ${url} (${device} mode)`);
 
-    // STEP 1: Capture screenshots AND extract HTML/text (exact from main.py capture_screenshot_from_url)
-    console.log("[DEBUG] Step 1: Capturing screenshots and extracting content...");
     const { captureScreenshotFromUrl } = await import("@/lib/capture");
+    const { quickScan } = await import("@/lib/quick-scan");
+
+    const scanPromise = quickScan(url).catch((scanError: unknown) => {
+      console.warn(`[WARNING] Quick scan failed: ${safeErrorMessage(scanError)}`);
+      return null;
+    });
+
     const { screenshots, htmlContent, pageText, pageHeight } =
       await captureScreenshotFromUrl(url, device);
+
+    const captureMs = Date.now() - tCaptureStart;
 
     console.log(
       `[DEBUG] Captured ${screenshots.length} screenshots, ${htmlContent.length} chars HTML, ${pageText.length} chars text`
     );
 
-    // STEP 1.5: Run quick_scan in parallel (exact from main.py lines 4525-4535)
     let scanData: {
       page_height: number;
       price_guess: number;
@@ -1525,14 +1676,13 @@ export async function POST(request: NextRequest) {
       price_from_page: boolean;
       price_billing_note: string;
     };
-    try {
-      const { quickScan } = await import("@/lib/quick-scan");
-      scanData = await quickScan(url);
+    const scanResolved = await scanPromise;
+    if (scanResolved) {
+      scanData = scanResolved;
       console.log(
         `[DEBUG] Quick scan complete: price=${scanData.price_guess}, industry=${scanData.industry_guess}`
       );
-    } catch (scanError) {
-      console.warn(`[WARNING] Quick scan failed: ${safeErrorMessage(scanError)}`);
+    } else {
       scanData = {
         page_height: pageHeight,
         price_guess: DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD,
@@ -1543,9 +1693,14 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 2: Convert screenshots to ImageInput format
-    const imageInputs: ImageInput[] = screenshots.map((base64) => ({
+    const imageInputs: ImageInput[] = screenshots.slice(0, 1).map((base64) => ({
       base64,
-      mimeType: base64.replace(/\s/g, "").startsWith("iVBORw0KGgo") ? "image/png" : "image/jpeg",
+      mimeType: (() => {
+        const b = base64.replace(/\s/g, "");
+        if (b.startsWith("iVBORw0KGgo")) return "image/png";
+        if (b.startsWith("UklGR")) return "image/webp";
+        return "image/jpeg";
+      })(),
     }));
 
     let seoData: import("@/lib/seo-analyzer").SeoAnalysisResult | null = null;
@@ -1573,9 +1728,10 @@ export async function POST(request: NextRequest) {
       /* fail silent */
     }
 
-    // STEP 3: Execute compile_roast (exact from main.py compile_roast)
+    const tCompileStart = Date.now();
     console.log("[DEBUG] Step 2: Running Gemini analysis...");
     const result = await compileRoast(imageInputs, pageText, htmlContent, url);
+    const compileMs = Date.now() - tCompileStart;
 
     (result as { seo?: unknown; page_type?: string; performance?: unknown }).seo =
       seoData ?? null;
@@ -1584,20 +1740,8 @@ export async function POST(request: NextRequest) {
     (result as { seo?: unknown; page_type?: string; performance?: unknown }).performance =
       pageSpeed ?? null;
 
-    if (
-      seoData != null &&
-      typeof seoData.score === "number" &&
-      Number.isFinite(seoData.score) &&
-      typeof result.overall_score === "number" &&
-      Number.isFinite(result.overall_score)
-    ) {
-      const blended = Math.round((result.overall_score + seoData.score) / 2);
-      result.overall_score = blended;
-      if (result.overview && typeof result.overview === "object") {
-        (result.overview as { overallScore?: number }).overallScore = blended;
-      }
-      result.headline_roast = `Site Score: ${blended}/100`;
-    }
+    // Overall score stays the mean of the six radar pillars (same as the Site Score grid).
+    // Do not blend SEO score into headline overall — it caused inflated totals vs. displayed axes.
 
     // Add ROI data to result (exact from main.py lines 4527-4535)
     result.pageHeight = scanData.page_height;
@@ -1654,16 +1798,51 @@ export async function POST(request: NextRequest) {
     if (screenshots[0]) {
       result.heroScreenshot = screenshots[0];
     }
+    (result as { device?: "desktop" | "mobile" }).device = device;
+
+    syncOverallScoreWithRadarPayload(
+      result as Parameters<typeof syncOverallScoreWithRadarPayload>[0]
+    );
+
+    if (chargeUid) {
+      const r = result as Record<string, unknown>;
+      const meta = r._meta as Parameters<typeof recordAuditLogEntry>[0]["meta"];
+      const overall =
+        typeof r.overall_score === "number"
+          ? r.overall_score
+          : typeof (r.overview as Record<string, unknown> | undefined)?.overallScore ===
+              "number"
+            ? ((r.overview as { overallScore: number }).overallScore as number)
+            : 0;
+      void recordAuditLogEntry({
+        userId: chargeUid,
+        auditedUrl: url,
+        device,
+        overallScore: overall,
+        industryGuess:
+          typeof r.industry_guess === "string" ? r.industry_guess : undefined,
+        pageType: typeof r.page_type === "string" ? r.page_type : undefined,
+        meta,
+      });
+    }
+
+    if (logRoastTiming) {
+      const totalMs = Date.now() - wall;
+      const remainderMs = Math.max(0, totalMs - authDebitMs - captureMs - compileMs);
+      console.log(
+        `[ROAST_TIMING] totalMs=${totalMs} authDebitMs=${authDebitMs} captureMs=${captureMs} compileMs=${compileMs} remainderMs=${remainderMs}`
+      );
+    }
 
     console.log("[DEBUG] Roast generation complete");
     return NextResponse.json(
       {
-        ...result,
-        ...(creditsRemaining !== undefined ? { creditsRemaining } : {}),
+        ...(result as Record<string, unknown>),
+        ...(typeof creditsRemaining === "number" ? { creditsRemaining } : {}),
       },
       { status: 200 }
     );
-  } catch (error) {
+  } catch (error: unknown) {
     if (chargeUid && chargeCost > 0) {
       await refundRoastCredits(chargeUid, chargeCost).catch(() => {
         /* best-effort refund */

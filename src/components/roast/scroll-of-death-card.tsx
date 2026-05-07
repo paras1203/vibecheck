@@ -2,12 +2,14 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { IconFrame } from "@/components/ui/icon-frame";
+import { cn } from "@/lib/utils";
 import {
   SCROLL_ZONE_META,
   ScrollIssueFixLine,
   scrollZoneHint,
 } from "@/components/roast/scroll-of-death-zones";
 import { partitionScrollEvidenceByZone } from "@/lib/scroll-effectiveness-from-audit";
+import { belowFoldPercentValueClass } from "@/lib/metric-thresholds";
 import type { ScrollEffectiveness } from "@/types/roast-extras";
 import { TrendingDown } from "lucide-react";
 
@@ -52,61 +54,69 @@ export function ScrollOfDeathCard({
           fixes fall along the page.
         </p>
       </CardHeader>
-      <CardContent className="space-y-6 pt-0">
-        <div className="rounded-xl border border-border bg-muted/15 p-4 md:p-5">
-          <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
+      <CardContent className="space-y-5 pt-0">
+        <div className="rounded-xl border border-border bg-muted/15 p-4 md:p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             How to read this snapshot
           </p>
-          <div className="mt-3 flex flex-col gap-3 border-b border-border-muted pb-4 sm:flex-row sm:items-start sm:gap-6">
+          <div className="mt-2.5 flex flex-col gap-3 border-b border-border-muted pb-3 sm:flex-row sm:items-start sm:gap-5">
             <div className="shrink-0">
-              <p className="text-caption text-muted-foreground">Below first screen</p>
-              <p className="font-mono text-2xl font-semibold tabular-nums text-primary md:text-3xl">
+              <p className="text-[11px] text-muted-foreground">Below first screen</p>
+              <p
+                className={cn(
+                  "font-mono text-xl font-semibold tabular-nums sm:text-2xl",
+                  belowFoldPercentValueClass(belowFoldPercent)
+                )}
+              >
                 {belowFoldPercent.toFixed(0)}%
               </p>
             </div>
-            <p className="min-w-0 flex-1 text-sm leading-relaxed text-muted-foreground">{scoreMeaning}</p>
+            <p className="min-w-0 flex-1 text-xs leading-relaxed text-muted-foreground">{scoreMeaning}</p>
           </div>
-          <div className="mt-4 space-y-3 text-sm leading-relaxed">
+          <div className="mt-3 space-y-2 text-xs leading-relaxed text-muted-foreground">
             <p className="text-foreground/90">{situation}</p>
             <p>
-              <span className="font-medium text-foreground">Recommended next step: </span>
+              <span className="font-medium text-foreground">Next step: </span>
               {action}
             </p>
           </div>
         </div>
 
         <div>
-          <p className="mb-3 text-caption font-medium uppercase tracking-wide text-muted-foreground">
-            Issues & fixes by scroll zone
+          <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            Issues &amp; fixes by scroll zone
           </p>
-          <p className="mb-4 text-xs text-muted-foreground">
-            Audit lines are grouped by keywords (hero, navigation, footer, etc.); read each band with the
-            percentage above.
+          <p className="mb-3 text-[11px] leading-snug text-muted-foreground">
+            Grouped from audit wording (hero, nav, footer, etc.); use the percentage above for context.
           </p>
-          <div className="flex min-h-[22rem] flex-col overflow-x-clip overflow-y-visible rounded-xl border border-border shadow-surface-xs">
+          <div className="flex flex-col overflow-x-auto overflow-y-visible rounded-xl border border-border shadow-surface-xs">
             {SCROLL_ZONE_META.map((z) => {
               const Icon = z.icon;
               const lines = byZone[z.key];
               return (
                 <div
                   key={z.key}
-                  className={`flex flex-none flex-col border-b border-border bg-gradient-to-b ${z.bandClass} px-4 py-4 last:border-b-0 sm:px-5 sm:py-5`}
+                  className={`flex flex-none flex-col border-b border-border bg-gradient-to-b ${z.bandClass} px-3 py-3 last:border-b-0 sm:px-4 sm:py-3.5`}
                 >
-                  <div className="flex gap-3">
+                  <div className="flex gap-2.5">
                     <IconFrame size="sm" className={`shrink-0 bg-background/80 ${z.iconClass}`}>
                       <Icon className="size-4 stroke-[1.75]" aria-hidden />
                     </IconFrame>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold leading-snug text-foreground">
-                        {z.title}
-                        <span className="font-normal text-muted-foreground"> | {z.subtitle}</span>
+                      <p
+                        className={cn(
+                          "text-sm font-semibold leading-snug",
+                          z.titleLineClass
+                        )}
+                      >
+                        {z.title} — {z.subtitle}
                       </p>
-                      <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground">
+                      <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
                         {scrollZoneHint(z.key, foldHeight)}
                       </p>
                     </div>
                   </div>
-                  <div className="mt-3 min-w-0 border-t border-border-muted pt-3">
+                  <div className="mt-2.5 min-w-0 border-t border-border-muted pt-2.5">
                     {lines.length > 0 ? (
                       <ul className="min-w-0 space-y-3">
                         {lines.map((line, i) => (

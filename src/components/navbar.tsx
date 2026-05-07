@@ -11,12 +11,51 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
-import { Loader2 } from "lucide-react";
+import { Loader2, Menu } from "lucide-react";
 import { NavbarThemeToggle } from "@/components/navbar-theme-toggle";
 import { BRAND_NAME } from "@/lib/brand";
+import { VariationSwitcher, type LandingVisualId } from "@/components/landing/shared/variation-switcher";
+import { cn } from "@/lib/utils";
 
-export function Navbar() {
+const FULL_LINKS = [
+  { href: "#problem", label: "Problem" },
+  { href: "#preview", label: "Preview" },
+  { href: "#how-it-works", label: "How it works" },
+  { href: "#features", label: "Features" },
+  { href: "#comparison", label: "Compare" },
+  { href: "#founding", label: "Founding" },
+  { href: "#pricing", label: "Pricing" },
+] as const;
+
+const CONCEPT_LINKS = [
+  { href: "#preview", label: "Preview" },
+  { href: "#features", label: "Features" },
+  { href: "#comparison", label: "Compare" },
+  { href: "#founding", label: "Founding" },
+  { href: "#pricing", label: "Pricing" },
+] as const;
+
+export type NavbarProps = {
+  landingVisualId?: LandingVisualId | null;
+  showLandingVariationSwitcher?: boolean;
+  navMode?: "full" | "concept";
+  tone?: "default" | "dark" | "minimal" | "c2" | "c3";
+};
+
+export function Navbar({
+  landingVisualId = null,
+  showLandingVariationSwitcher = false,
+  navMode = "full",
+  tone = "default",
+}: NavbarProps) {
   const { user, logout, loading, isSyncing } = useAuth();
   const getInitials = (email: string) => {
     return email
@@ -28,73 +67,135 @@ export function Navbar() {
       .slice(0, 2);
   };
 
+  const links = navMode === "concept" ? CONCEPT_LINKS : FULL_LINKS;
+
+  const navShell = cn(
+    "sticky top-0 z-50 w-full border-b shadow-surface-xs backdrop-blur-md",
+    tone === "default" && "border-border bg-background/85",
+    tone === "dark" && "border-white/10 bg-black/80 text-white",
+    tone === "minimal" &&
+      "border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)]/92 text-[var(--lv-minimal-text)]",
+    tone === "c2" &&
+      "border-[var(--lv-c2-border)] bg-[color-mix(in_srgb,var(--lv-c2-bg)_92%,transparent)] text-[var(--lv-c2-text)]",
+    tone === "c3" &&
+      "border-[var(--lv-c3-border)] bg-[color-mix(in_srgb,var(--lv-c3-bg)_92%,transparent)] text-[var(--lv-c3-text)]",
+  );
+
+  const linkClass = cn(
+    "text-sm transition-colors",
+    tone === "default" && "text-muted-foreground hover:text-foreground",
+    tone === "dark" && "text-white/70 hover:text-white",
+    tone === "minimal" && "text-[var(--lv-minimal-text)]/70 hover:text-[var(--lv-minimal-text)]",
+    tone === "c2" && "text-[var(--lv-c2-text)]/70 hover:text-[var(--lv-c2-text)]",
+    tone === "c3" && "text-[var(--lv-c3-muted)] hover:text-[var(--lv-c3-text)]",
+  );
+
+  const brandClass = cn(
+    "shrink-0 text-[1.35rem] font-semibold leading-none tracking-tight md:text-2xl",
+    tone === "default" && "text-foreground",
+    tone === "dark" && "text-white",
+    tone === "minimal" && "text-[var(--lv-minimal-text)]",
+    tone === "c2" && "text-[var(--lv-c2-text)]",
+    tone === "c3" && "text-[var(--lv-c3-text)]",
+  );
+
   return (
-    <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/85 shadow-surface-xs backdrop-blur-md">
+    <nav className={navShell}>
       <div className="flex h-14 w-full items-center justify-between gap-4 px-4 md:h-16 md:px-8">
-        <Link
-          href="/"
-          className="shrink-0 text-[1.35rem] font-semibold leading-none tracking-tight text-foreground md:text-2xl"
-        >
+        <Link href="/" className={brandClass}>
           {BRAND_NAME}
         </Link>
 
         <div className="hidden min-w-0 flex-1 items-center justify-center gap-5 md:flex lg:gap-7">
-          <Link
-            href="#problem"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Problem
-          </Link>
-          <Link
-            href="#preview"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Preview
-          </Link>
-          <Link
-            href="#how-it-works"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            How it works
-          </Link>
-          <Link
-            href="#features"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Features
-          </Link>
-          <Link
-            href="#comparison"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Compare
-          </Link>
-          <Link
-            href="#founding"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Founding
-          </Link>
-          <Link
-            href="#pricing"
-            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Pricing
-          </Link>
+          {links.map((item) => (
+            <Link key={item.href} href={item.href} className={linkClass}>
+              {item.label}
+            </Link>
+          ))}
         </div>
 
         <div className="flex items-center gap-2 md:gap-3">
+          {navMode === "concept" ? (
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "md:hidden",
+                    tone === "dark" && "text-white hover:bg-white/10",
+                    tone === "c3" && "text-[var(--lv-c3-text)] hover:bg-[var(--lv-c3-surface-2)]",
+                    tone === "c2" && "text-[var(--lv-c2-text)] hover:bg-[var(--lv-c2-surface-2)]",
+                  )}
+                  aria-label="Open menu"
+                >
+                  <Menu className="size-5 stroke-[1.5]" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[min(100vw-2rem,320px)]">
+                <SheetHeader>
+                  <SheetTitle>Navigate</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6 flex flex-col gap-1">
+                  {links.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="rounded-md px-3 py-2.5 text-sm font-medium hover:bg-muted"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              </SheetContent>
+            </Sheet>
+          ) : null}
+
+          {showLandingVariationSwitcher ? (
+            <VariationSwitcher
+              current={landingVisualId}
+              triggerClassName={cn(
+                tone === "dark" &&
+                  "border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white",
+                tone === "minimal" && "border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-1)]",
+                tone === "c2" &&
+                  "border-[var(--lv-c2-border)] bg-[var(--lv-c2-surface-1)] text-[var(--lv-c2-text)]",
+                tone === "c3" &&
+                  "border-[var(--lv-c3-border)] bg-[var(--lv-c3-surface-1)] text-[var(--lv-c3-text)]",
+              )}
+            />
+          ) : null}
+
           <NavbarThemeToggle />
 
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div
+              className={cn(
+                "flex items-center gap-2 text-sm",
+                tone === "default" && "text-muted-foreground",
+                tone === "dark" && "text-white/70",
+                tone === "minimal" && "text-[var(--lv-minimal-text)]/70",
+                tone === "c2" && "text-[var(--lv-c2-text)]/70",
+                tone === "c3" && "text-[var(--lv-c3-muted)]",
+              )}
+            >
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Loading...</span>
+              <span className="hidden sm:inline">Loading...</span>
             </div>
           ) : isSyncing ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div
+              className={cn(
+                "flex items-center gap-2 text-sm",
+                tone === "default" && "text-muted-foreground",
+                tone === "dark" && "text-white/70",
+                tone === "minimal" && "text-[var(--lv-minimal-text)]/70",
+                tone === "c2" && "text-[var(--lv-c2-text)]/70",
+                tone === "c3" && "text-[var(--lv-c3-muted)]",
+              )}
+            >
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Syncing...</span>
+              <span className="hidden sm:inline">Syncing...</span>
             </div>
           ) : user ? (
             <DropdownMenu>
@@ -153,19 +254,51 @@ export function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <div className="flex items-center gap-3 text-sm font-medium">
+            <div
+              className={cn(
+                "flex items-center gap-3 text-sm font-medium",
+                tone === "dark" && "text-white",
+                tone === "minimal" && "text-[var(--lv-minimal-text)]",
+                tone === "c2" && "text-[var(--lv-c2-text)]",
+                tone === "c3" && "text-[var(--lv-c3-text)]",
+              )}
+            >
               <Link
                 href="/login"
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className={cn(
+                  "transition-colors",
+                  tone === "default" && "text-muted-foreground hover:text-foreground",
+                  tone === "dark" && "text-white/70 hover:text-white",
+                  tone === "minimal" &&
+                    "text-[var(--lv-minimal-text)]/70 hover:text-[var(--lv-minimal-text)]",
+                  tone === "c2" &&
+                    "text-[var(--lv-c2-text)]/70 hover:text-[var(--lv-c2-text)]",
+                  tone === "c3" && "text-[var(--lv-c3-muted)] hover:text-[var(--lv-c3-text)]",
+                )}
               >
                 Log in
               </Link>
-              <span className="text-border" aria-hidden>
+              <span
+                className={cn(
+                  tone === "dark" && "text-white/25",
+                  tone === "c3" && "text-[var(--lv-c3-border)]",
+                  tone !== "dark" && tone !== "c3" && "text-border",
+                )}
+                aria-hidden
+              >
                 |
               </span>
               <Link
                 href="/login?mode=signup"
-                className="text-foreground transition-colors hover:text-primary"
+                className={cn(
+                  "transition-colors",
+                  tone === "default" && "text-foreground hover:text-primary",
+                  tone === "dark" && "text-white hover:text-[var(--lv-bold-accent)]",
+                  tone === "minimal" &&
+                    "text-[var(--lv-minimal-text)] hover:text-[var(--lv-minimal-accent)]",
+                  tone === "c2" && "text-[var(--lv-c2-text)] hover:text-[var(--lv-c2-accent)]",
+                  tone === "c3" && "text-[var(--lv-c3-text)] hover:text-[var(--lv-c3-accent)]",
+                )}
               >
                 Register
               </Link>

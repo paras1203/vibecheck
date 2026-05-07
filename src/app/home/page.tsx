@@ -15,7 +15,6 @@ import { listRoastHistory } from "@/lib/roast-history";
 import { formatReportDisplayName, reportTimestampFromRoastId } from "@/lib/report-display-name";
 import { buildRoastTeaser } from "@/lib/roast-teaser";
 import { RoastGenerationOverlay } from "@/components/landing/roast-generation-overlay";
-import { BRAND_NAME } from "@/lib/brand";
 import { persistRoastForClientNavigation, stripRoastApiBillingFields } from "@/lib/roast-storage";
 import type { AuditReportPayload } from "@/lib/report-html";
 import { isPreviewRoastFree } from "@/lib/credits-config";
@@ -60,12 +59,8 @@ export default function HomeWorkspacePage() {
   const accountCreditsLine =
     user && roastPhase === "teaser"
       ? isPreviewRoastFree()
-        ? user.firestoreSynced
-          ? `This preview is free (0 credits). Your balance: ${formatCreditsBalance(user)} credits.`
-          : "This preview is free. Your Firestore profile did not load—check the Firebase Console (enable Cloud Firestore and rules for users/{uid})."
-        : user.firestoreSynced
-          ? `Credits remaining: ${formatCreditsBalance(user)}`
-          : "Credits could not be loaded from Firestore."
+        ? `This preview is free (0 credits). Your balance: ${formatCreditsBalance(user)} credits.`
+        : `Credits remaining: ${formatCreditsBalance(user)}`
       : null;
 
   const handleRoast = async () => {
@@ -157,10 +152,6 @@ export default function HomeWorkspacePage() {
         <div className="ml-[14.4rem] flex min-h-screen flex-col gap-8 bg-background p-6 pt-8 md:p-10 md:pt-10">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Home</h1>
-            <p className="mt-1 text-muted-foreground">
-              Run a new audit from {BRAND_NAME}. Recent activity below — open the dashboard for the full list,
-              exports, and analytics.
-            </p>
           </div>
 
           <Card>
@@ -224,7 +215,7 @@ export default function HomeWorkspacePage() {
                       >
                         <span className="truncate font-medium text-foreground">{label}</span>
                         {typeof entry.overallScore === "number" ? (
-                          <span className="ml-3 shrink-0 font-mono tabular-nums text-muted-foreground">
+                          <span className="ml-3 shrink-0 rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 font-mono text-sm font-semibold tabular-nums text-primary">
                             {entry.overallScore}/100
                           </span>
                         ) : null}

@@ -1,6 +1,7 @@
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
 import type { PerformanceGeminiSummary } from "@/types/roast-extras";
+import { pdfAxisScoreHex } from "@/lib/report-theme";
 
 export type SeoAppendixInput = {
   seo?: SeoAnalysisResult | null;
@@ -116,7 +117,9 @@ export function buildSeoPerformanceAppendixHtml(
     parts.push(
       `<div class="section report-major">
         <h2>SEO snapshot</h2>
-        <p class="report-nojustify"><strong>SEO health score:</strong> ${esc(String(seo.score))}/100</p>
+        <p class="report-nojustify"><strong>SEO health score:</strong> <span class="report-figure" style="color:${pdfAxisScoreHex(
+          Number(seo.score)
+        )};font-weight:700;">${esc(String(seo.score))}</span>/100</p>
         <p class="muted report-nojustify">Title (${titleLen} chars): ${esc(titleStatus)}</p>
         <p class="muted report-nojustify">Meta description: ${esc(metaStatus)}</p>
         <p class="muted report-nojustify">H1 count: ${esc(String(seo.h1Count))}</p>
@@ -130,7 +133,9 @@ export function buildSeoPerformanceAppendixHtml(
   if (hasPerf && perf) {
     const perfScore =
       typeof perf.performanceScore === "number"
-        ? `<p class="report-nojustify">Performance score: ${esc(String(perf.performanceScore))}</p>`
+        ? `<p class="report-nojustify">Performance score: <span class="report-figure" style="color:${pdfAxisScoreHex(
+            perf.performanceScore
+          )};font-weight:700;">${esc(String(perf.performanceScore))}</span></p>`
         : "";
     const lcp =
       perf.lcp != null && perf.lcp !== ""

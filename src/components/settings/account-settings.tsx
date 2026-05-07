@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import type { User as FirebaseUser } from "firebase/auth";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,8 +9,13 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Pencil, Check } from "lucide-react";
 
+function isGoogleOnlySignIn(firebaseUser: FirebaseUser | null): boolean {
+  if (!firebaseUser?.providerData?.length) return false;
+  return firebaseUser.providerData.every((p) => p?.providerId === "google.com");
+}
+
 export function AccountSettings() {
-  const { user, updateDisplayName, sendPasswordResetToEmail } = useAuth();
+  const { user, firebaseUser, updateDisplayName, sendPasswordResetToEmail } = useAuth();
   const [name, setName] = useState(user?.displayName ?? "");
   const [editingName, setEditingName] = useState(false);
   const [savingName, setSavingName] = useState(false);
@@ -50,6 +56,7 @@ export function AccountSettings() {
   };
 
   const displayName = user?.displayName?.trim() || null;
+  const googleOnly = isGoogleOnlySignIn(firebaseUser);
 
   return (
     <div className="space-y-8">
@@ -126,20 +133,28 @@ export function AccountSettings() {
 
       <div className="space-y-2">
         <Label>Password</Label>
-        <p className="text-xs text-muted-foreground">
-          Google accounts use Google to sign in. Email/password accounts can reset via email.
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          onClick={() => void onChangePassword()}
-          disabled={sendingReset || !email}
-        >
-          {sendingReset ? <Loader2 className="size-4 animate-spin" /> : null}
-          Change password
-        </Button>
+        {googleOnly ? (
+          <p className="text-xs text-muted-foreground">
+            You sign in with Google. Your password is managed in your Google account.
+          </p>
+        ) : (
+          <>
+            <p className="text-xs text-muted-foreground">
+              Email/password accounts can request a reset link to set a new password.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => void onChangePassword()}
+              disabled={sendingReset || !email}
+            >
+              {sendingReset ? <Loader2 className="size-4 animate-spin" /> : null}
+              Change password
+            </Button>
+          </>
+        )}
       </div>
 
     </div>

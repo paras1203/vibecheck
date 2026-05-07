@@ -4,6 +4,8 @@ import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
 import { getPuppeteerWithStealth } from "@/lib/screenshot";
 import { generateFreeRoastCertificateHTML, generatePaidAgencyReportHTML } from "@/lib/pdf-templates";
 
+export const maxDuration = 120;
+
 const isLocalDev = process.env.NODE_ENV === "development" || !process.env.VERCEL;
 
 export async function POST(request: NextRequest) {
@@ -11,7 +13,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { roastData, isPaid = false, url = "https://siteroast.ai" } = body;
+    const {
+      roastData,
+      isPaid = false,
+      url = "https://siteroast.ai",
+      calculator,
+    } = body;
 
     if (!roastData) {
       return NextResponse.json(
@@ -21,9 +28,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate HTML based on tier
-    const html = isPaid 
-      ? await generatePaidAgencyReportHTML(roastData, url)
-      : await generateFreeRoastCertificateHTML(roastData, url);
+    const html = isPaid
+      ? await generatePaidAgencyReportHTML(roastData, url, calculator)
+      : await generateFreeRoastCertificateHTML(roastData, url, calculator);
 
     const puppeteer = await getPuppeteerWithStealth();
 
@@ -54,6 +61,21 @@ export async function POST(request: NextRequest) {
     await page.setContent(html, {
       waitUntil: "networkidle0",
     });
+
+    await page
+      .evaluate(() =>
+        Promise.all(
+          [...document.images].map((img) =>
+            img.complete
+              ? Promise.resolve()
+              : new Promise<void>((resolve) => {
+                  img.onload = () => resolve();
+                  img.onerror = () => resolve();
+                })
+          )
+        )
+      )
+      .catch(() => undefined);
 
     await page
       .evaluate(() => document.fonts?.ready ?? Promise.resolve())

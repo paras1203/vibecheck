@@ -361,6 +361,25 @@ PDF route implementation (if product requires).
 
 ---
 
+## 2026-04-06 - Admin backfill Auth → Firestore `users`
+
+### 2. Site Map (delta)
+- `POST /api/admin/backfill-user-profiles` — admin Bearer token; lists Firebase Auth users and creates missing `users/{uid}` docs (default credits, plan `free`). Optional body `{ "dryRun": true }` to count only.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-07 - Roast report: section titles, executive summary, scroll zones, heatmap
+
+### 7. Page/Screen-Wise Component List (delta)
+- **`/roast/[id]`** — `SectionHeader` before element-by-element audit and before category deep dive; executive summary card restores **Summary** (hook / executiveSummary / roastSummary) with uniform `text-sm` body; Scroll of Death zones use landing-aligned labels (Top/Middle/Bottom) and tighter typography; attention heatmap documents chunk-1 viewport, stable SVG filter id, `onError` fallback for bad image data.
+- **Docs** — `Vibecheck_Report_Visual_Hierarchy_and_Audit_Flow.md` describes report visual hierarchy and audit derivation.
+
+**Confirmed:** This structure log was appended.
+
+---
+
 ## 2026-04-05 - Vercel: puppeteer-extra stealth evasions missing
 
 ### 3. Workflows (delta)
@@ -381,5 +400,110 @@ PDF route implementation (if product requires).
 
 ### 3. Workflows (delta)
 - Auth: Firestore sync failure sets `credits: 0`, `firestoreSynced: false` (no phantom signup default). Razorpay verify uses a transaction + `payments/{paymentId}` doc for idempotency; credits math uses numeric coercion (fixes string concat). Roast debit returns `no_profile` / `persistence_error` with distinct HTTP statuses.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-07 - Unified report refactor (PDF / HTML export / roast page parity)
+
+### 3. Workflows (delta)
+- `/roast/[id]`: **Category deep dive** (tabs) renders **before** **Element-by-element audit**; section descriptions use shared `REPORT_CATEGORY_SUB` / `REPORT_ELEMENT_SUB` from `report-html.ts`.
+- Paid/full access: all `audit_items` shown (teaser remains `slice(0, 6)` when locked).
+- Category score + verdict use `radarScoreValueClass` (80 / 60 thresholds); audit status badges align with export pill semantics (Good → success, Satisfactory & Needs Improvement → warning).
+- **Supplementary audit coverage** card when scroll effectiveness or traffic estimate note is present (mirrors HTML/PDF supplement).
+
+### 7. Components (delta)
+- `report-html.ts` exports `REPORT_CATEGORY_SUB`, `REPORT_ELEMENT_SUB` for reuse on the roast page.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-04-08 - Admin analytics, audit_logs, LLM_1 / LLM_2 env
+
+### 2. Site map (delta)
+- `/dashboard/admin/analytics` (admin-only): usage charts, token/cost averages, Firestore user sample, LLM stack display, payments-in-range count.
+- API: `GET /api/admin/analytics?range=today|7d|30d|90d|120d|365d` (Bearer idToken + admin email allowlist).
+
+### 3. Workflows (delta)
+- Successful `POST /api/roast` with valid `idToken` writes one `audit_logs` doc (tokens, est. cost, score, URL, device, industry, page type) via Admin SDK.
+
+### 6. Data layer (delta)
+- Firestore collection `audit_logs` (server-written only).
+
+### 7. Components (delta)
+- Sidebar **Admin**: **Analytics** → `/dashboard/admin/analytics`; `AdminAnalyticsDashboard`.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-07 - Report parity, hero snapshot, scroll copy, roast latency (plan)
+
+### 2. Site map (delta)
+- No new routes; `/api/generate-pdf` accepts optional `calculator: { traffic, price, industry }` in POST body.
+
+### 3. Workflows (delta)
+- `/roast/[id]` and Recent Reports: PDF download sends the same calculator snapshot as HTML export. Executive summary blocks strip display markdown; first-viewport panel distinguishes missing vs invalid hero payload.
+- `POST /api/roast`: timing logs when `ROAST_TIMING_LOG` is set (unchanged behavior); success response structure restored.
+
+### 6. Data layer (delta)
+- Shared category scoring: `report-category-score.ts` (`categoriesFromDetailedAudit`, display name / average / verdict helpers) used by roast page, PDF template, and HTML deep dive.
+
+### 7. Components (delta)
+- `InsightLayerCard`: current numeric scores use `radarScoreValueClass` bands; `FirstViewportSnapshotPanel` invalid-hero message; `report-diagnostic-section` / `report-copy.stripDisplayMarkdown` for export executive text.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-07 (PM) - Report UX visual parity (exports + UI)
+
+### 3. Workflows (delta)
+- `/roast/[id]`: loads persisted roast with **server fetch first** (`GET /api/roast/:id`), merges cache, then persists so Pro fields (`detailedAudit`, etc.) survive reload.
+
+### 6. `/lib` (delta)
+- `report-radar-tiles-html.ts` — pillar tile grid HTML for audit + PDF; `report-charts-svg.ts` `buildRadarSvg` keyed to `RADAR_AXIS_LABELS` + `scoreForRadarAxis`; `radar-axis-scores.ts` `radarTilesForDisplay`; `revenue-scenario-accents.ts`; `metric-thresholds.ts` (Scroll-of-Death below-fold %); `report-hero-snapshot-html.ts` horizontal-scroll frame.
+
+### 7. Components (delta)
+- `RevenueLeakEstimateCard`, landing `RoastTeaserPanel` / `ReportPreviewSection`, economics row on roast page: scenario / cost-of-inaction risk palette; `ScrollOfDeathCard` threshold coloring; `RoastSeoHealthBlock` / `RoastPageSpeedBlock` band scores; `FirstViewportSnapshotPanel` `overflow-x-auto`, natural image sizing.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-07 (late PM) - Four landing visual concepts (`/v/a1`–`/v/b2`)
+
+### 2. Site map (delta)
+- `/v/a1` — gradient mesh / glass bold landing (roast flow unchanged → `/roast/[id]`).
+- `/v/a2` — dark brutalist landing.
+- `/v/b1` — minimal “Apple clean” landing.
+- `/v/b2` — grid / crisp minimal landing + pricing toggle.
+
+### 7. Components (delta)
+- `src/components/landing/shared/` — `url-input-form`, `variation-switcher`, `social-proof-strip`, `testimonial-row`, `stats-bar`, `sample-report-preview`.
+- `src/components/landing/a1|a2|b1|b2/` — per-variation sections.
+- `src/hooks/use-landing-roast.ts`, `src/lib/landing-pricing-utils.ts`.
+- `Navbar`: `landingVisualId`, `showLandingVariationSwitcher`, `navMode` (`full`|`concept`), `tone` (`default`|`dark`|`minimal`); concept mode adds mobile sheet nav to section anchors.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-07 - Three additional landing concepts (`/v/c1`–`/v/c3`)
+
+### 2. Site map (delta)
+- `/v/c1` — signal brutalist (A2 base + C1 trust marquee + preview; `--lv-c1-*`).
+- `/v/c2` — warm precision / Apple-adjacent light (`--lv-c2-*`; B1-like section order).
+- `/v/c3` — operator dark zinc (`--lv-c3-*`; split hero, early stats, horizontal steps, B2-style tabbed pricing, minimal footer).
+
+### 3. Workflows (delta)
+- Unchanged roast path: `useLandingRoast` + `RoastGenerationOverlay` on all seven `/v/*` pages.
+
+### 7. Components (delta)
+- `src/components/landing/c1|c2|c3/` — variation-specific sections; shared extensions: `social-proof-strip` `marqueePalette="c1"`, `testimonial-row` `palette="c2"`, `stats-bar` `palette="c3"`, `url-input-form` variants `c2` / `c3`.
+- `variation-switcher`: seven entries grouped **New concepts** (C1–C3) vs **Original four** (A1–B2).
+- `Navbar` `tone`: adds `c2` | `c3` for token-aligned concept shells.
 
 **Confirmed:** This structure log was appended.

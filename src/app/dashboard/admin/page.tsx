@@ -91,6 +91,9 @@ function AdminDashboardContent() {
               <CardTitle>Report index & analytics</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
+              <Button asChild variant="default" size="sm">
+                <Link href="/dashboard/admin/analytics">Open admin analytics</Link>
+              </Button>
               <Button asChild variant="outline" size="sm">
                 <Link href="/dashboard">Dashboard</Link>
               </Button>

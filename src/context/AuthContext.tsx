@@ -164,14 +164,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     } catch (error) {
       console.error("Error syncing user with Firestore:", error);
-      setUser({
-        uid: firebaseUser.uid,
-        email: firebaseUser.email || "",
-        credits: 0,
-        plan: "free",
-        displayName: firebaseUser.displayName || undefined,
-        photoURL: firebaseUser.photoURL || undefined,
-        firestoreSynced: false,
+      setUser((prev) => {
+        const same = prev?.uid === firebaseUser.uid;
+        return {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          credits: same && prev ? prev.credits : 0,
+          plan: same && prev ? prev.plan : "free",
+          displayName: firebaseUser.displayName || prev?.displayName,
+          photoURL: firebaseUser.photoURL || prev?.photoURL,
+          firestoreSynced: false,
+        };
       });
       mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
       setIsSyncing(false);

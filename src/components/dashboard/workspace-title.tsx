@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getWorkspaceName, setWorkspaceName } from "@/lib/workspace-name";
 import type { User } from "@/context/AuthContext";
+import { creditsBalanceTitle, formatCreditsBalance } from "@/lib/credits-balance-display";
 import { Pencil, Check } from "lucide-react";
 
 type Props = {
@@ -41,6 +42,18 @@ export function WorkspaceTitle({ user }: Props) {
         <Badge variant="secondary" className="align-middle capitalize">
           {user?.plan || "free"}
         </Badge>
+        {user ? (
+          <>
+            <span aria-hidden>·</span>
+            <span>Credits</span>
+            <span
+              className="font-mono font-semibold tabular-nums text-foreground"
+              title={creditsBalanceTitle(user)}
+            >
+              {formatCreditsBalance(user)}
+            </span>
+          </>
+        ) : null}
       </p>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">

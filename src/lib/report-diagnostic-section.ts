@@ -1,4 +1,4 @@
-import { stripNarrativeSegmentLabels } from "@/lib/report-copy";
+import { stripDisplayMarkdown, stripNarrativeSegmentLabels } from "@/lib/report-copy";
 
 /** Shared executive summary + diagnostic markup for HTML and PDF exports (presentation only). */
 
@@ -31,15 +31,20 @@ export function buildExecutiveDiagnosticInnerHtml(
     data.roastSummary || data.overview?.executiveSummary || "";
   const hook = data.hook || "";
   const summaryText = primarySummary || hook;
-  const diagnostic = stripNarrativeSegmentLabels(
-    data.overview?.roastAnalysis ||
-      data.roastAnalysis ||
-      data.script ||
-      data.analysis ||
-      ""
+  const diagnostic = stripDisplayMarkdown(
+    stripNarrativeSegmentLabels(
+      data.overview?.roastAnalysis ||
+        data.roastAnalysis ||
+        data.script ||
+        data.analysis ||
+        ""
+    )
   );
-  const verdict = data.verdict || "";
-  const closer = data.closer || "";
+  const verdictRaw = data.verdict || "";
+  const closerRaw = data.closer || "";
+
+  const prettifyExec = (s: string) =>
+    stripDisplayMarkdown(stripNarrativeSegmentLabels(s.trim()));
 
   const extraFraming =
     primarySummary &&
@@ -50,13 +55,15 @@ export function buildExecutiveDiagnosticInnerHtml(
 
   const blocks: string[] = [];
   if (summaryText) {
+    const cleanSummary = prettifyExec(summaryText);
     blocks.push(
-      `<p class="report-label">Summary</p><div class="report-prose report-section-head"><p>${esc(summaryText).replace(/\n/g, "<br/>")}</p></div>`
+      `<p class="report-label">Summary</p><div class="report-prose report-section-head"><p>${esc(cleanSummary).replace(/\n/g, "<br/>")}</p></div>`
     );
   }
   if (extraFraming) {
+    const cleanHook = prettifyExec(extraFraming);
     blocks.push(
-      `<p class="report-label" style="margin-top:var(--rs-md)">Framing</p><div class="report-prose"><p>${esc(extraFraming).replace(/\n/g, "<br/>")}</p></div>`
+      `<p class="report-label" style="margin-top:var(--rs-md)">Framing</p><div class="report-prose"><p>${esc(cleanHook).replace(/\n/g, "<br/>")}</p></div>`
     );
   }
   if (diagnostic) {
@@ -64,12 +71,14 @@ export function buildExecutiveDiagnosticInnerHtml(
       `<div class="report-prose" style="margin-top:var(--rs-md)"><p>${esc(diagnostic).replace(/\n/g, "<br/>")}</p></div>`
     );
   }
-  if (verdict) {
+  if (verdictRaw) {
+    const verdict = prettifyExec(verdictRaw);
     blocks.push(
       `<p class="report-label" style="margin-top:var(--rs-md)">Assessment</p><div class="report-prose"><p>${esc(verdict).replace(/\n/g, "<br/>")}</p></div>`
     );
   }
-  if (closer) {
+  if (closerRaw) {
+    const closer = prettifyExec(closerRaw);
     blocks.push(
       `<p class="report-label" style="margin-top:var(--rs-md)">Next steps</p><div class="report-prose"><p>${esc(closer).replace(/\n/g, "<br/>")}</p></div>`
     );

@@ -325,4 +325,9 @@ Return ONLY valid JSON matching this shape (no markdown):
 
 Do not include priority fields; the client derives priority from composite.current.
 
-Do not invent dollar prices, subscription tiers, or “$X/mo” figures in summaries; rely on audit signals and radar only.`;
+Do not invent dollar prices, subscription tiers, or “$X/mo” figures in summaries; rely on audit signals and radar only.
+
+QUALITY RULES:
+
+* Avoid generic summaries; tie each layer to a concrete weakness in user perception or behavior.
+* Prioritize clarity, trust, and decision-making gaps over cosmetic or vague observations.`;
