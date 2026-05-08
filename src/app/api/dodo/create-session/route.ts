@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
       cancel_url: returnUrl,
       metadata,
       feature_flags: {
-        redirect_immediately: true,
+        redirect_immediately: false,
       },
     });
 
@@ -119,8 +119,12 @@ export async function POST(request: NextRequest) {
       );
     }
     const msg = error instanceof Error ? error.message : String(error);
-    if (msg === "Unauthorized") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (msg.startsWith("Unauthorized")) {
+      const details =
+        msg.includes("missing_token")
+          ? "Sign-in token was not sent. Refresh the page and try again."
+          : "Your sign-in token could not be verified. Try refreshing, or sign out and back in. For dev: ensure Firebase Admin env keys match the Firebase project used in the app.";
+      return NextResponse.json({ error: "Unauthorized", details }, { status: 401 });
     }
     console.error("[dodo] create-session:", error);
     return NextResponse.json(

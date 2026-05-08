@@ -11,10 +11,7 @@ import { useRequireAuth } from "@/hooks/use-require-auth";
 import { toast } from "sonner";
 import { Zap, Minus, Plus } from "lucide-react";
 import { IconFrame } from "@/components/ui/icon-frame";
-import {
-  redirectToDodoCheckout,
-  verifyDodoPaymentReturn,
-} from "@/components/dodo-open-checkout";
+import { verifyDodoPaymentReturn } from "@/components/dodo-open-checkout";
 import { creditsBalanceTitle, formatCreditsBalance } from "@/lib/credits-balance-display";
 import {
   AGENCY_PACK_CREDITS,
@@ -97,7 +94,7 @@ function BillingPageContent() {
   const router = useRouter();
   const isAuthenticated = useRequireAuth();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState<string | null>(null);
+
   const [proUnits, setProUnits] = useState(1);
   const [agencyPacks, setAgencyPacks] = useState(1);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
@@ -141,7 +138,7 @@ function BillingPageContent() {
     let cancelled = false;
     void (async () => {
       try {
-        const token = await firebaseUser.getIdToken();
+        const token = await firebaseUser.getIdToken(true);
         const result = await verifyDodoPaymentReturn(paymentId, token);
         if (cancelled) return;
         if (typeof sessionStorage !== "undefined") sessionStorage.setItem(dedupeKey, "1");
@@ -162,26 +159,25 @@ function BillingPageContent() {
   }, [firebaseUser, router, searchParams, updateCreditsAndPlan, user]);
 
   const runCheckout = useCallback(
-    async (planId: BillingCheckoutPlanId, quantity?: number) => {
+    (planId: BillingCheckoutPlanId, quantity?: number) => {
       if (!firebaseUser) {
         toast.error("Please log in to purchase credits");
         return;
       }
-      setLoading(planId);
-      try {
-        const token = await firebaseUser.getIdToken();
-        await redirectToDodoCheckout(planId, token, quantity);
-      } catch (error) {
-        console.error("[billing] Checkout:", error);
-        toast.error("Checkout failed", {
-          description:
-            error instanceof Error ? error.message : "Unexpected error opening checkout.",
-        });
-      } finally {
-        setLoading(null);
+      const qs = new URLSearchParams({ plan: planId });
+      if (planId !== "free_test") {
+        qs.set(
+          "qty",
+          String(
+            planId === "pro"
+              ? normalizeCheckoutQty("pro", quantity ?? proUnits)
+              : normalizeCheckoutQty("agency", quantity ?? agencyPacks)
+          )
+        );
       }
+      router.push(`/checkout?${qs.toString()}`);
     },
-    [firebaseUser]
+    [agencyPacks, firebaseUser, proUnits, router]
   );
 
   useEffect(() => {
@@ -189,7 +185,6 @@ function BillingPageContent() {
       searchParams.get("payment_id") && searchParams.get("status") === "succeeded"
     );
     if (paymentHold) return;
-    if (!user || !firebaseUser) return;
     if (searchParams.get("checkout") !== "dodo") return;
 
     const planRaw = searchParams.get("plan");
@@ -197,24 +192,28 @@ function BillingPageContent() {
       planRaw === "pro" || planRaw === "agency" || planRaw === "free_test" ? planRaw : null;
     if (!plan) return;
 
-    const openKey = `dodo_billing_auto_${plan}_${searchParams.get("qty") ?? "default"}`;
-    if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(openKey)) {
-      return;
+    const qtyRaw = searchParams.get("qty");
+    const qs = new URLSearchParams({ plan });
+    if (plan !== "free_test") {
+      qs.set(
+        "qty",
+        String(
+          plan === "pro"
+            ? normalizeCheckoutQty("pro", qtyRaw ?? proUnits)
+            : normalizeCheckoutQty("agency", qtyRaw ?? agencyPacks)
+        )
+      );
     }
+
+    const dest = `/checkout?${qs.toString()}`;
+    const openKey = `dodo_billing_migrate_${dest}`;
     if (typeof sessionStorage !== "undefined") {
+      if (sessionStorage.getItem(openKey)) return;
       sessionStorage.setItem(openKey, "1");
     }
 
-    const qtyRaw = searchParams.get("qty");
-    const qtyResolved =
-      plan === "free_test"
-        ? undefined
-        : plan === "pro"
-          ? normalizeCheckoutQty("pro", qtyRaw ?? 1)
-          : normalizeCheckoutQty("agency", qtyRaw ?? 1);
-
-    void runCheckout(plan, qtyResolved);
-  }, [firebaseUser, runCheckout, searchParams, user]);
+    router.replace(dest);
+  }, [agencyPacks, proUnits, router, searchParams]);
 
   if (!isAuthenticated) {
     return null;
@@ -371,11 +370,11 @@ function BillingPageContent() {
                             plan.id === "pro" ? proUnits : agencyPacks
                           )
                         }
-                        disabled={loading === plan.id || !firebaseUser}
+                        disabled={!firebaseUser}
                         className="w-full"
                         size="lg"
                       >
-                        {loading === plan.id ? "Opening checkout…" : plan.buttonLabel}
+                        {plan.buttonLabel}
                       </Button>
                     </div>
                   </CardContent>

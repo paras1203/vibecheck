@@ -522,3 +522,20 @@ PDF route implementation (if product requires).
 - `src/lib/should-use-bundled-chromium.ts` — shared rule for `@sparticuz/chromium` in production (e.g. Cloud Run without `VERCEL`).
 
 **Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-08 - Dodo inline checkout route
+
+### 2. Site map (delta)
+- New `/checkout` — authenticated inline Dodo Payments checkout (`dodopayments-checkout` SDK, `displayType: "inline"`); query `plan` (`pro` | `agency` | `free_test`), optional `qty` for paid plans.
+
+### 3. Workflows (delta)
+- Pricing / founding Buy CTAs → `/checkout?plan=…`; legacy `/billing?checkout=dodo&…` redirects once to `/checkout?…`.
+- Billing “Buy Pro / Agency” navigates to `/checkout` with current stepper quantities (no full-page redirect to hosted Dodo URL).
+
+### 7. Components (delta)
+- `src/components/checkout/dodo-checkout-flow.tsx`, `checkout-order-summary.tsx`; `src/lib/dodo-checkout-sdk-mode.ts`, `dodo-inline-checkout-element-id.ts`.
+- `POST /api/dodo/create-session` uses `redirect_immediately: false` for embedded checkout.
+
+**Confirmed:** This structure log was appended.

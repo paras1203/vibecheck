@@ -10,7 +10,7 @@ type FoundingC2Props = {
 };
 
 function billingPath(plan: "pro") {
-  return `/billing?plan=${plan}`;
+  return `/checkout?plan=${plan}`;
 }
 
 function checkoutHref(user: User | null, plan: "pro") {

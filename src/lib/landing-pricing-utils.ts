@@ -2,7 +2,7 @@ import type { User } from "@/context/AuthContext";
 import type { BillingCheckoutPlanId } from "@/lib/billing-plans";
 
 export function billingPath(plan: BillingCheckoutPlanId) {
-  return `/billing?plan=${plan}&checkout=dodo`;
+  return `/checkout?plan=${plan}`;
 }
 
 export function checkoutHref(user: User | null, plan: "pro" | "agency") {

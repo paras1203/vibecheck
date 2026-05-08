@@ -127,3 +127,18 @@ Identical API, auth, and credits across `/` and all `/v/*`.
 - `/v/c1` … `/v/c3` — new comparison candidates; **Landing visuals** dropdown lists C1–C3 under “New concepts” and A1–B2 under “Original four”.
 
 **Confirmed:** This log was appended.
+
+---
+
+## [2026-05-08] - # Mobile vs Desktop: Workflow Architecture (Dodo inline checkout)
+
+### 1.1 Route Structure
+- `/checkout` uses the same `SidebarProvider` + `AppSidebar` + `SidebarInset` shell as `/billing` (mobile sheet sidebar unchanged).
+
+### 1.3 What Is Shared
+- Buy URLs are identical on mobile and desktop; optional `qty` query for Pro/Agency.
+
+### 5. Route Mapping (Unified)
+- `/checkout?plan=pro|agency|free_test[&qty=n]` → inline iframe; payment completion still lands on `/billing` via Dodo session `return_url`.
+
+**Confirmed:** This log was appended.

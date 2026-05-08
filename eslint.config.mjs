@@ -20,7 +20,6 @@ const eslintConfig = defineConfig([
       "src/lib/capture.ts",
       "src/lib/gemini-client.ts",
       "src/lib/pdf-templates.ts",
-      "src/lib/ai-logic.ts",
     ],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",

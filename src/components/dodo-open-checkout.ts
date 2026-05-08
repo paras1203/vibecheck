@@ -7,13 +7,14 @@ export type DodoPurchaseOk = {
   plan: "free" | "pro" | "agency";
 };
 
-export async function redirectToDodoCheckout(
+export async function fetchDodoCheckoutSessionUrl(
   planId: BillingCheckoutPlanId,
   idToken: string,
   quantity?: number
-): Promise<void> {
+): Promise<string> {
   const res = await fetch("/api/dodo/create-session", {
     method: "POST",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,
@@ -28,7 +29,7 @@ export async function redirectToDodoCheckout(
   if (!res.ok || !data.checkoutUrl) {
     throw new Error(data.details || data.error || "Could not start checkout");
   }
-  window.location.href = data.checkoutUrl;
+  return data.checkoutUrl;
 }
 
 export async function verifyDodoPaymentReturn(
@@ -37,6 +38,7 @@ export async function verifyDodoPaymentReturn(
 ): Promise<DodoPurchaseOk> {
   const res = await fetch("/api/dodo/verify", {
     method: "POST",
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${idToken}`,

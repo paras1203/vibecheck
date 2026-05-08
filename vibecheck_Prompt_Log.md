@@ -1,3 +1,16 @@
+
+
+## 2026-05-08 - Dodo Payments inline checkout
+
+**Category:** Feature Request / Core Logic
+
+**Instruction:**
+> All buy buttons should initiate the buying process and take users to Dodo Payment inline Checkout per https://docs.dodopayments.com/developer-resources/inline-checkout.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
 ## 2026-05-07 - Google Cloud Run: Docker + Next standalone (plan execution)
 
 **Category:** Architecture
@@ -521,6 +534,13 @@
 **Category:** Architecture / Feature Request
 **Instruction:**
 > Implement the attached plan (do not edit the plan file): roast POST latency instrumentation; full scroll zone / scroll effectiveness copy (no aggressive clipping); hero snapshot device threading, persistence, base64 validation; executive summary markdown stripping; unified score bands (web + PDF/SVG + optional insight card coloring); pass calculator into PDF API and `pdf-templates`; shared category-scoring helper across UI / HTML / PDF; verify PDF route limits and embedded image readiness.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-05-08 - Remove GCP-heavy Genkit stack (lighter installs)
+**Category:** Architecture
+**Instruction:**
+> Do not deploy on Google Cloud; remove related tooling if not relevant or needed now to keep the app light without affecting working code.
 
 **Constraint:** Confirmed this log entry was appended when completing this batch.
 
