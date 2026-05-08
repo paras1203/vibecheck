@@ -29,6 +29,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import {
   getFirebaseAuth,
   getFirestoreClient,
+  hydrateFirebaseClientFromApi,
   isFirebaseClientConfigured,
 } from "@/lib/firebase";
 import { mergeLegacyRoastHistoryIntoUser } from "@/lib/roast-history";
@@ -52,6 +53,8 @@ interface AuthContextType {
   isSyncing: boolean;
   /** False until the first `onAuthStateChanged` event (restored session or signed-out). */
   authResolved: boolean;
+  /** Client Firebase SDK has valid config (build-time vars or hydrated from `/api/firebase/client-config`). */
+  firebaseConfigured: boolean;
   handleGoogleAuth: () => Promise<void>;
   handleEmailSignIn: (email: string, password: string) => Promise<void>;
   handleEmailSignUp: (email: string, password: string) => Promise<void>;
@@ -111,6 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
+  const [firebaseConfigured, setFirebaseConfigured] = useState(false);
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const authBootstrappedRef = useRef(false);
 
@@ -189,16 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setLoading(true);
     setIsSyncing(false);
-
-    if (!isFirebaseClientConfigured()) {
-      setFirebaseUser(null);
-      setUser(null);
-      authBootstrappedRef.current = true;
-      setAuthResolved(true);
-      setLoading(false);
-      setIsSyncing(false);
-      return;
-    }
+    setFirebaseConfigured(false);
 
     if (unsubscribeRef.current) {
       unsubscribeRef.current();
@@ -209,6 +204,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | null = null;
 
     (async () => {
+      if (!isFirebaseClientConfigured()) {
+        await hydrateFirebaseClientFromApi();
+      }
+      if (cancelled) return;
+
+      if (!isFirebaseClientConfigured()) {
+        setFirebaseUser(null);
+        setUser(null);
+        authBootstrappedRef.current = true;
+        setAuthResolved(true);
+        setFirebaseConfigured(false);
+        setLoading(false);
+        setIsSyncing(false);
+        return;
+      }
+
+      setFirebaseConfigured(true);
+
       try {
         await getRedirectResult(getFirebaseAuth());
       } catch (e) {
@@ -440,6 +453,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isSyncing,
         authResolved,
+        firebaseConfigured,
         handleGoogleAuth,
         handleEmailSignIn,
         handleEmailSignUp,

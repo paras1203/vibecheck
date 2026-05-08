@@ -29,6 +29,7 @@ function LoginInner() {
     loading,
     isSyncing,
     authResolved,
+    firebaseConfigured,
   } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,7 +59,7 @@ function LoginInner() {
   }, [modeParam]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || loading) return;
+    if (typeof window === "undefined" || loading || !firebaseConfigured) return;
     let cancelled = false;
     (async () => {
       try {
@@ -72,9 +73,9 @@ function LoginInner() {
     return () => {
       cancelled = true;
     };
-  }, [loading, completeEmailLinkSignInIfPresent]);
+  }, [loading, firebaseConfigured, completeEmailLinkSignInIfPresent]);
 
-  const busy = loading || isSyncing;
+  const busy = loading || isSyncing || !firebaseConfigured;
 
   const onGoogle = async () => {
     startTransition(() => setError(null));
@@ -176,6 +177,14 @@ function LoginInner() {
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">{BRAND_NAME}</p>
             </div>
+
+            {!firebaseConfigured && authResolved && (
+              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive">
+                Firebase client could not be configured. Confirm Railway service variables include your Firebase web app keys (same names as in{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">.env.example</code>), redeploy, and open{" "}
+                <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/firebase/client-config</code> — it should return JSON, not 503.
+              </p>
+            )}
 
             <Button
               type="button"
