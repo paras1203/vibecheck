@@ -1,6 +1,6 @@
 import chromium from "@sparticuz/chromium";
 import type { Browser, Page } from "puppeteer-core";
-import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { resolvePuppeteerLaunchExecutablePath } from "@/lib/chromium-executable";
 import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 
 /**
@@ -141,14 +141,20 @@ export async function takeScreenshot(url: string, device: 'desktop' | 'mobile' =
       defaultViewport: { width: viewportWidth, height: viewportHeight },
     };
 
+    const exePath = await resolvePuppeteerLaunchExecutablePath();
     if (shouldUseBundledChromium()) {
-      // Production/serverless: use @sparticuz/chromium
       launchOptions.args = [
         ...chromium.args,
-        "--disable-blink-features=AutomationControlled", // Critical: Hides the "robot" flag
+        "--disable-blink-features=AutomationControlled",
         "--disable-features=IsolateOrigins,site-per-process",
       ];
-      launchOptions.executablePath = await resolveChromiumExecutablePath();
+    }
+    if (exePath) {
+      launchOptions.executablePath = exePath;
+    } else if (!shouldUseBundledChromium()) {
+      console.warn(
+        "[screenshot] No Chrome/Chromium executable found. Install Chrome or Edge or set CHROMIUM_EXECUTABLE_PATH."
+      );
     }
 
     browser = await puppeteer.launch(launchOptions);

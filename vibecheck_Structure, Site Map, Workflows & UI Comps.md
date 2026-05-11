@@ -539,3 +539,16 @@ PDF route implementation (if product requires).
 - `POST /api/dodo/create-session` uses `redirect_immediately: false` for embedded checkout.
 
 **Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-08 (PM) - Report UX Phases 3–6 (quick wins, prompts, context, backlog)
+
+### 7. Components (delta)
+- `src/components/roast/how-to-read-this-report.tsx`, `report-context-card.tsx`, `report-analytics-readiness-card.tsx`, `experiment-backlog-section.tsx`, `implementation-checklist-section.tsx`, `quick-win-card-body.tsx`.
+- Lib: `quick-wins-format.ts`, `report-artifacts-builders.ts`, `report-artifacts-html.ts`; API adds optional quick-win `impactCode`, `experimentBacklog`, `implementationChecklist`; narrative/worker budgets in `src/app/api/roast/route.ts`.
+
+### 6. Paid exports (delta)
+- `report-html.ts` and `pdf-templates.ts` include how-to-read, scan context, analytics readiness, experiments, checklist in line with `/roast/[id]`.
+
+**Confirmed:** This structure log was appended.

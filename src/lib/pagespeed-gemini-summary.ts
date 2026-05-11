@@ -10,7 +10,8 @@ function hasAnyMetric(p: PageSpeedSummary | null): p is PageSpeedSummary {
     typeof p.performanceScore === "number" ||
     (p.lcp != null && p.lcp !== "") ||
     (p.cls != null && p.cls !== "") ||
-    (p.tbt != null && p.tbt !== "")
+    (p.tbt != null && p.tbt !== "") ||
+    (p.inp != null && p.inp !== "")
   );
 }
 
@@ -28,6 +29,7 @@ export async function summarizePageSpeedWithGemini(
       lcp: metrics.lcp,
       cls: metrics.cls,
       tbt: metrics.tbt,
+      inp: metrics.inp,
       strategy: metrics.strategy ?? "mobile",
     };
 

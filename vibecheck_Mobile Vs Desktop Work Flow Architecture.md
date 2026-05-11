@@ -1,3 +1,33 @@
+## [2026-05-11] - # Mobile vs Desktop: Workflow Architecture
+
+## 1. Current State
+### 1.1 Route Structure
+Unchanged routes; authenticated shell routes (`/billing`, `/checkout`, `/dashboard`, `/home`, `/settings`, `/roast/[id]` main column, admin routes) wrap main columns with responsive gutter: below `md` (768px) no left inset margin; `md`+ restores `md:ml-[14.4rem]` (and preserved `md:w-[calc(100%-14.4rem)]` where previously used).
+
+### 1.2 Layout & Shell
+Sidebar remains Sheet on `<768px` (`useIsMobile`), docked spacer + fixed rail at `md+`. Main-column `SidebarInset` children now use full width (`w-full`, `min-w-0`) until `md:` so Sheet overlay does not leave an empty lane.
+
+### 1.3 What Is Shared
+Same pages and JSX; gutter classes centralized only as Tailwind on each page shell `div`.
+
+### 1.4 What Is Duplicated / Divergent
+Per-page copies of shell class strings remain (could later extract a small `AuthenticatedShellMain` primitive).
+
+## 2. Workflow Differences (Current)
+### 2.1 Billing / checkout / dashboard shells
+Mobile & tablet portrait (<768 logical px): edge-to-edge content in `SidebarInset`. Desktop & tablets ≥768px: prior offset + width constraint restored.
+
+## 3. Target Architecture
+Unchanged principles (single workflow, breakpoint-based layout).
+
+## 4. Implementation Checklist
+- [x] Responsive main-column margin/width across billing, checkout, roast, dashboard, settings, home, admin
+
+## 5. Summary
+Fixed mobile blank-left layout caused by `ml-[14.4rem]` while sidebar is overlay-only below `md`.
+
+---
+
 ## [2026-04-07] - # Mobile vs Desktop: Workflow Architecture
 
 ## 1. Current State
@@ -140,5 +170,20 @@ Identical API, auth, and credits across `/` and all `/v/*`.
 
 ### 5. Route Mapping (Unified)
 - `/checkout?plan=pro|agency|free_test[&qty=n]` → inline iframe; payment completion still lands on `/billing` via Dodo session `return_url`.
+
+**Confirmed:** This log was appended.
+
+---
+
+## [2026-05-08] - # Mobile vs Desktop: Workflow Architecture (report Phases 3–6)
+
+### 1.1 Route Structure
+- `/roast/[id]` only; report sections added (how-to-read blurb, scan context, analytics readiness, experiment backlog, implementation checklist).
+
+### 1.3 What Is Shared
+- Same narrative order mobile/desktop; stacks use shared components.
+
+### 1.4 What Is Duplicated / Divergent
+- None; PDF/HTML include the same blocks as the live report.
 
 **Confirmed:** This log was appended.

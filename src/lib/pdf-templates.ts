@@ -23,11 +23,20 @@ import {
 } from "./insight-layers-report";
 import type { InsightExportData } from "./insight-layers-report";
 import { buildExecutiveDiagnosticInnerHtml } from "./report-diagnostic-section";
-import { scrollDepthNarrative } from "./report-ui";
+import { scrollDepthNarrative, formatQuickWinSubheadLine } from "./report-ui";
+import { quickWinFixBulletText } from "./quick-wins-format";
 import { BRAND_NAME } from "./brand";
 import { buildPersonalizedInsiderLines } from "@/lib/personalized-insider";
 import { heroScreenshotDataUrl } from "@/lib/hero-image";
 import { buildSeoPerformanceAppendixHtml } from "@/lib/report-seo-appendix";
+import type { ReportArtifactsInput } from "@/lib/report-artifacts-html";
+import {
+  buildExperimentBacklogSectionHtml,
+  buildHowToReadThisReportHtml,
+  buildImplementationChecklistHtml,
+  buildReportAnalyticsReadinessHtml,
+  buildReportContextCardHtml,
+} from "@/lib/report-artifacts-html";
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
 import {
@@ -52,6 +61,8 @@ import {
   exportCategoryVerdictColor,
   exportStatusPillColor,
 } from "@/lib/report-export-status";
+import type { AuditReportPayload } from "@/lib/report-html";
+import { buildReportV2InnerHtml, buildReportV2PdfShellHtml } from "@/lib/report-v2-html-blocks";
 
 interface RoastData extends InsightExportData {
   overall_score?: number;
@@ -92,6 +103,13 @@ interface RoastData extends InsightExportData {
   performanceGemini?: PerformanceGeminiSummary | null;
   scrollEffectiveness?: ScrollEffectiveness | null;
   trafficEstimate?: TrafficEstimate | null;
+  experimentBacklog?: import("@/types/report-artifacts").ExperimentBacklogItem[];
+  implementationChecklist?: import("@/types/report-artifacts").ImplementationChecklistItem[];
+  price_from_page?: boolean;
+  price_billing_note?: string;
+  performance_audit?: import("@/lib/audits/performance-pagespeed").PerformanceAuditResult | null;
+  tech_stack?: import("@/lib/audits/tech-stack-audit").TechStackAuditResult | null;
+  behaviour_tools?: import("@/lib/audits/behaviour-tools").BehaviourToolsAdvice | null;
 }
 
 function pdfScoreColor(score: number): string {
@@ -134,6 +152,47 @@ function strList(v: unknown): string[] {
   return v.map((x) => String(x));
 }
 
+function quickWinImpactMatrixCell(win: { impactCode?: string; lift?: string }): string {
+  const code = (win.impactCode || "").trim().toUpperCase();
+  const lift = (win.lift || "").trim();
+  if (code === "HI" || code === "MI" || code === "LI") {
+    return lift ? `${code} — ${lift}` : code;
+  }
+  return lift || "—";
+}
+
+function quickWinPdfCardBlock(
+  win: {
+    title?: string;
+    elementName?: string;
+    effort?: string;
+    impactCode?: string;
+    problem?: string;
+    fix?: string;
+    example?: string;
+    lift?: string;
+  },
+  idx: number
+): string {
+  const title = esc(String(win.title || win.elementName || "Quick win"));
+  const sub = esc(formatQuickWinSubheadLine(win.effort, win.impactCode, win.lift));
+  const fixB = esc(
+    quickWinFixBulletText(String(win.fix || ""), String(win.example || ""))
+  );
+  const prob = win.problem
+    ? `<li><strong>Problem:</strong> ${esc(String(win.problem))}</li>`
+    : "";
+  const impLi = win.lift
+    ? `<li><strong>Impact:</strong> ${esc(String(win.lift))}</li>`
+    : "";
+  return `<div class="quick-win">
+        <div class="report-card__index">#${idx + 1}</div>
+        <div class="report-card__title report-nojustify">${title}</div>
+        <p class="muted report-nojustify" style="font-size:0.8125rem;margin-top:6px">${sub}</p>
+        <ul style="margin:8px 0 0;padding-left:1.1rem;font-size:0.8125rem">${prob}<li><strong>Fix:</strong> ${fixB}</li>${impLi}</ul>
+      </div>`;
+}
+
 export async function generateFreeRoastCertificateHTML(
   data: RoastData,
   url: string = "https://siteroast.ai",
@@ -174,27 +233,21 @@ export async function generateFreeRoastCertificateHTML(
 
   const execInner = buildExecutiveDiagnosticInnerHtml(data, esc);
   const seoAppendixFree = buildSeoPerformanceAppendixHtml(data, esc);
+  const artifactPayload = data as ReportArtifactsInput;
+  const roadmapIntroFree =
+    buildHowToReadThisReportHtml(esc) +
+    buildReportContextCardHtml(artifactPayload, esc) +
+    buildReportAnalyticsReadinessHtml(artifactPayload, esc);
+  const experimentFreeHtml =
+    buildExperimentBacklogSectionHtml(artifactPayload, esc);
+  const checklistFreeHtml =
+    buildImplementationChecklistHtml(artifactPayload, esc);
+  const deliveryBlocksFree =
+    experimentFreeHtml + checklistFreeHtml;
 
   const qwHtml = quickWins
     .slice(0, 8)
-    .map((win, i) => {
-      const w = win as {
-        title?: string;
-        elementName?: string;
-        lift?: string;
-        fix?: string;
-        effort?: string;
-      };
-      const t = esc(w.title || w.elementName || `Quick win ${i + 1}`);
-      const imp = esc(w.lift || w.fix || "—");
-      const ef = w.effort ? esc(w.effort) : "";
-      return `<div class="quick-win">
-        <div class="report-card__index">#${i + 1}</div>
-        <div class="report-card__title report-nojustify">${t}</div>
-        <p class="muted report-nojustify" style="font-size:0.875rem;margin-top:8px;"><span class="report-label" style="display:inline;margin-right:6px;">Impact</span> ${imp}</p>
-        ${ef ? `<p class="muted report-nojustify" style="font-size:0.8125rem;"><span class="report-label" style="display:inline;margin-right:6px;">Effort</span> ${ef}</p>` : ""}
-      </div>`;
-    })
+    .map((win, i) => quickWinPdfCardBlock(win, i))
     .join("");
 
   return `<!DOCTYPE html>
@@ -220,6 +273,8 @@ export async function generateFreeRoastCertificateHTML(
 
   ${execInner ? `<h2>Executive summary &amp; diagnostic</h2><div class="report-exec-diagnostics">${execInner}</div>` : ""}
 
+  ${roadmapIntroFree}
+
   <h2>Revenue leak estimate</h2>
   ${revenueLeakFreeHtml}
 
@@ -227,7 +282,7 @@ export async function generateFreeRoastCertificateHTML(
   <p class="muted report-nojustify" style="font-size:0.8125rem;margin-bottom:14px;">Scenario model—not a guarantee. Base uses the 2% benchmark consistent with lost-revenue illustrations elsewhere in this report.</p>
   ${insightFreeHtml}
 
-  ${quickWins.length ? `<h2>Quick wins &amp; impact</h2><p class="intel-micro">${intelEstEsc} when prioritized fixes ship (typical range, not guaranteed). ${intelBenchEsc}.</p>${qwHtml}` : ""}
+  ${quickWins.length ? `<h2>Quick wins &amp; impact</h2><p class="intel-micro">${intelEstEsc} when prioritized fixes ship (typical range, not guaranteed). ${intelBenchEsc}.</p>${qwHtml}${deliveryBlocksFree}` : `${deliveryBlocksFree}`}
 
   <h2>AI Insights</h2>
   <div class="section" style="margin-top:12px;">${insiderHtml}</div>
@@ -321,7 +376,7 @@ export async function generatePaidAgencyReportHTML(
           <td>#${idx + 13}</td>
           <td>${esc(String(win.title || win.elementName || "Quick win"))}</td>
           <td style="color: ${h.muted};">${esc(String(win.effort || "—"))}</td>
-          <td style="color: ${h.muted};">${esc(String(win.lift || "—"))}</td>
+          <td style="color: ${h.muted};">${esc(quickWinImpactMatrixCell(win as { impactCode?: string; lift?: string }))}</td>
         </tr>`
           )
           .join("")
@@ -336,7 +391,7 @@ export async function generatePaidAgencyReportHTML(
           <td>#${idx + 1}</td>
           <td>${esc(String(win.title || win.elementName || "Quick win"))}</td>
           <td style="color: ${h.muted};">${esc(String(win.effort || "—"))}</td>
-          <td style="color: ${h.muted};">${esc(String(win.lift || "—"))}</td>
+          <td style="color: ${h.muted};">${esc(quickWinImpactMatrixCell(win as { impactCode?: string; lift?: string }))}</td>
         </tr>`
           )
           .join("") + matrixExtraRowsStr
@@ -423,20 +478,23 @@ export async function generatePaidAgencyReportHTML(
   );
 
   const execInner = buildExecutiveDiagnosticInnerHtml(data, esc);
+  const artifactPaid = data as ReportArtifactsInput;
+  const roadmapPaidPage =
+    `<div class="report-page">${buildHowToReadThisReportHtml(
+      esc
+    )}${buildReportContextCardHtml(artifactPaid, esc)}${buildReportAnalyticsReadinessHtml(
+      artifactPaid,
+      esc
+    )}</div>`;
+  const backlogPaidCombined =
+    buildExperimentBacklogSectionHtml(artifactPaid, esc) +
+    buildImplementationChecklistHtml(artifactPaid, esc);
+  const experimentChecklistPaidPage = backlogPaidCombined.trim()
+    ? `<div class="report-page">${backlogPaidCombined}</div>`
+    : "";
 
   const quickWinCards = quickWins
-    .map((win, idx) => {
-      const t = esc(String(win.title || win.elementName || "Quick win"));
-      const impact = win.lift ? esc(String(win.lift)) : "";
-      return `<div class="quick-win">
-        <div class="report-card__index">#${idx + 1}</div>
-        <div class="report-card__title report-nojustify">${t}</div>
-        ${win.problem ? `<p class="report-nojustify" style="font-size:14px;margin-top:8px;"><span class="report-label" style="display:inline;margin-right:6px;">Problem</span> ${esc(String(win.problem))}</p>` : ""}
-        ${win.fix ? `<p class="report-nojustify" style="font-size:14px;"><span class="report-label" style="display:inline;margin-right:6px;">Fix</span> ${esc(String(win.fix))}</p>` : ""}
-        ${win.example ? `<pre style="margin-top:10px;">${esc(String(win.example))}</pre>` : ""}
-        ${impact || win.effort ? `<p class="muted report-nojustify" style="font-size:13px;margin-top:8px;"><span class="report-label" style="display:inline;margin-right:6px;">Impact / effort</span> ${impact || "—"}${win.effort ? ` · ${esc(String(win.effort))}` : ""}</p>` : ""}
-      </div>`;
-    })
+    .map((win, idx) => quickWinPdfCardBlock(win, idx))
     .join("");
 
   const coverPage = `<div class="report-page">
@@ -562,11 +620,13 @@ export async function generatePaidAgencyReportHTML(
 <body>
   ${coverPage}
   ${execPage}
+  ${roadmapPaidPage}
   ${revenuePage}
   ${insightPage}
   ${siteScorePage}
   ${matrixPage}
   ${quickWinsPage}
+  ${experimentChecklistPaidPage}
   ${visualPage}
   ${deepDivePage}
   ${auditPage}
@@ -578,4 +638,46 @@ export async function generatePaidAgencyReportHTML(
   </footer>
 </body>
 </html>`;
+}
+
+export async function generateFreeRoastCertificateHTMLV2(
+  data: RoastData,
+  url: string = "https://siteroast.ai",
+  calculator?: ReportExportCalculatorInput | null,
+  reportId: string = "export"
+): Promise<string> {
+  const { traffic, price } = resolvePdfCalculatorNumbers(data, calculator);
+  const inner = buildReportV2InnerHtml(data as unknown as AuditReportPayload, {
+    esc,
+    isPaid: false,
+    calculator: {
+      traffic,
+      price,
+      industry: String(calculator?.industry ?? data.industry_guess ?? "SaaS"),
+    },
+    reportId,
+    generatedAt: new Date(),
+  });
+  return buildReportV2PdfShellHtml(inner, { esc, generatedAt: new Date() });
+}
+
+export async function generatePaidAgencyReportHTMLV2(
+  data: RoastData,
+  url: string = "https://siteroast.ai",
+  calculator?: ReportExportCalculatorInput | null,
+  reportId: string = "export"
+): Promise<string> {
+  const { traffic, price } = resolvePdfCalculatorNumbers(data, calculator);
+  const inner = buildReportV2InnerHtml(data as unknown as AuditReportPayload, {
+    esc,
+    isPaid: true,
+    calculator: {
+      traffic,
+      price,
+      industry: String(calculator?.industry ?? data.industry_guess ?? "SaaS"),
+    },
+    reportId,
+    generatedAt: new Date(),
+  });
+  return buildReportV2PdfShellHtml(inner, { esc, generatedAt: new Date() });
 }

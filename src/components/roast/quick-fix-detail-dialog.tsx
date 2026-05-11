@@ -12,6 +12,15 @@ import {
 } from "@/components/ui/dialog";
 import { effortDetailBody, impactDetailBody } from "@/lib/report-ui";
 
+function impactDetailForDialog(lift: string | undefined, impactCode: string | undefined): string {
+  const c = typeof impactCode === "string" ? impactCode.trim().toUpperCase() : "";
+  const liftPart = impactDetailBody(lift);
+  if (c === "HI" || c === "MI" || c === "LI") {
+    return liftPart ? `${c} — ${liftPart}` : c;
+  }
+  return liftPart;
+}
+
 export type QuickFixDetailWin = {
   title?: string;
   elementName?: string;
@@ -20,6 +29,7 @@ export type QuickFixDetailWin = {
   example?: string;
   effort?: string;
   lift?: string;
+  impactCode?: string;
 };
 
 type Props = {
@@ -29,7 +39,7 @@ type Props = {
 
 export function QuickFixDetailDialog({ win, trigger }: Props) {
   const effortBody = effortDetailBody(win.effort);
-  const impactBody = impactDetailBody(win.lift);
+  const impactBody = impactDetailForDialog(win.lift, win.impactCode);
 
   return (
     <Dialog>

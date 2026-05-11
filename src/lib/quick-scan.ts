@@ -1,5 +1,5 @@
 import chromium from "@sparticuz/chromium";
-import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { resolvePuppeteerLaunchExecutablePath } from "@/lib/chromium-executable";
 import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 import { DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD } from "./insight-layers";
 import { getPuppeteerWithStealth } from "./screenshot";
@@ -251,14 +251,22 @@ export async function quickScan(url: string): Promise<{
 
     const puppeteer = await getPuppeteerWithStealth();
 
+    const baseArgs = ["--no-sandbox", "--disable-setuid-sandbox"];
     const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
       headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      args: baseArgs,
     };
 
+    const exePath = await resolvePuppeteerLaunchExecutablePath();
     if (shouldUseBundledChromium()) {
       launchOptions.args = [...chromium.args];
-      launchOptions.executablePath = await resolveChromiumExecutablePath();
+    }
+    if (exePath) {
+      launchOptions.executablePath = exePath;
+    } else if (!shouldUseBundledChromium()) {
+      console.warn(
+        "[quick-scan] No Chrome/Chromium executable found. Install Chrome or Edge or set CHROMIUM_EXECUTABLE_PATH."
+      );
     }
 
     const browser = await puppeteer.launch(launchOptions);

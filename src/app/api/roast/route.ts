@@ -24,6 +24,19 @@ import {
 import { summarizePageSpeedWithGemini } from "@/lib/pagespeed-gemini-summary";
 import { estimateMonthlySessionsForUrl } from "@/lib/traffic-estimate";
 import { buildScrollEffectiveness } from "@/lib/scroll-effectiveness-from-audit";
+import {
+  canonicalItemsPreservingOrder,
+  type WorkerAuditItem,
+} from "@/lib/audit-grouping";
+import {
+  buildExperimentBacklog,
+  buildImplementationChecklist,
+} from "@/lib/report-artifacts-builders";
+import {
+  normalizeImpactCode,
+  stripPercentUpliftToQualitative,
+  truncateCombinedQuickWinFields,
+} from "@/lib/quick-wins-format";
 import { partitionLegalComplianceAuditLast } from "@/lib/legal-compliance-audit";
 import {
   analyzeLegalSignalsFromHtml,
@@ -31,6 +44,11 @@ import {
 } from "@/lib/legal-html-signals";
 import { syncOverallScoreWithRadarPayload } from "@/lib/site-score";
 import { recordAuditLogEntry } from "@/lib/audit-log-server";
+
+/** Hard minimum for DIAGNOSTIC segment (compileRoast, V1 + V2). Models often land 165–175w; 180 was brittle. */
+const MIN_DIAGNOSTIC_WORDS = 160;
+/** Prompt/design target; below this we warn but still accept if >= MIN_DIAGNOSTIC_WORDS. */
+const TARGET_DIAGNOSTIC_WORDS = 180;
 
 /**
  * 1:1 Logic Migration from main.py
@@ -82,6 +100,7 @@ BUSINESS IMPACT:
 
 * Explain why this reduces conversions
 * Use decisive language (no "might", "could")
+* Keep each notWorking array entry to 1–2 short sentences; keep fix.quickFix to 1–2 short sentences
 `;
 
 const AUDIT_WORKER_VISUAL_FOCUS = `PRIORITIZATION:
@@ -1008,8 +1027,8 @@ RAW CONTENT FROM THE WEBSITE:
       const systemInstruction = `You are a senior conversion strategist and CRO lead auditing a commercial page. Speak like you are diagnosing a revenue problem: direct, decisive, and evidence-backed. The page is underperforming until proven otherwise by the audit—frame missed opportunity and conversion loss, not generic design critique. No sarcasm, no mockery, no rant voice. Avoid hedging or soft language ("might", "could", "perhaps", "may").
 
 Return exactly four segments of plain text separated by "|||||" (five pipe characters) in this order:
-1) EXECUTIVE_SUMMARY — For decision-makers. The FIRST line MUST clearly state that the page is underperforming (name clarity, trust, conversion, or a combination). Then list 2–3 numbered critical failures tied to the failed audit items (use their themes). Add one sentence on business impact (lost conversions, hesitation, friction—qualitative only; do not invent dollar figures). End with one sentence stating what to fix first and why. Minimum ~55 words.
-2) DIAGNOSTIC_ANALYSIS — Layered analysis: observations grounded in the raw page content (quote or paraphrase H1, buttons, hero copy where relevant), implications for conversion, then prioritized actions. Tie issues to hesitation and drop-off. Minimum ~120 words. Professional prose.
+1) EXECUTIVE_SUMMARY — For decision-makers. Target length approximately 120–130 words. The FIRST line MUST clearly state that the page is underperforming (name clarity, trust, conversion, or a combination). Then include EXACTLY 3–4 failure bullet points (use a numbered list: 1. ... 2. ... 3. ... optional 4. ...) tied to the failed audit item themes; each bullet one tight line. Add one sentence on business impact (lost conversions, hesitation, friction—qualitative only; do not invent dollar figures). End with one sentence stating what to fix first and why. Do not pad with filler to hit the word count—stay within the band.
+2) DIAGNOSTIC_ANALYSIS — Target length approximately 200–220 words (minimum about 180 words). Layered analysis: observations grounded in the raw page content (quote or paraphrase H1, buttons, hero copy where relevant), implications for conversion, then prioritized actions. You MUST expand on the executive bullets with new evidence and nuance—do not repeat those bullet lines verbatim or re-list them as the main structure. If you are close to the minimum, add one short paragraph on user friction or revenue impact before finishing.
 3) ASSESSMENT — 2–3 lines: concise strategic verdict.
 4) NEXT_STEPS — 1–3 lines: professional CTA to upgrade for full detail. You MUST include this exact sentence verbatim: "Full diagnostic includes exact rewrite, layout fixes, and conversion strategy."
 
@@ -1028,8 +1047,8 @@ OUTPUT: Four segments separated by ||||| exactly:
 EXECUTIVE_SUMMARY ||||| DIAGNOSTIC_ANALYSIS ||||| ASSESSMENT ||||| NEXT_STEPS
 
 Rules:
-- EXECUTIVE_SUMMARY: First line must clearly say the page is underperforming; then 2–3 numbered critical failures aligned with the audit list; one line on business impact (lost conversions / hesitation / friction); final line on what to fix first and why.
-- DIAGNOSTIC_ANALYSIS: Substance over volume; cite page copy where it helps; no snark; tie to revenue and user behavior.
+- EXECUTIVE_SUMMARY: First line must clearly say the page is underperforming; then 3–4 numbered bullets (1. 2. 3. and optional 4.) for critical failures aligned with the audit list; one line on business impact (lost conversions / hesitation / friction); final line on what to fix first and why. Stay near 120–130 words total.
+- DIAGNOSTIC_ANALYSIS: Stay near 200–220 words (at least ~180); add page-specific evidence that was NOT already stated as the executive bullets; no snark; tie to revenue and user behavior—no verbatim copy-paste of the executive bullet text.
 - ASSESSMENT: Sharp and short.
 - NEXT_STEPS: Include the exact required upgrade sentence and invite full report access.
 
@@ -1139,16 +1158,36 @@ ${userPrompt}`;
         
         console.log("[DEBUG] Successfully parsed 4-part narrative format using separator:", separator);
         console.log("[DEBUG] Parts count:", parts.length);
-        console.log("[DEBUG] Hook length:", hook.length, "words:", hook.split(/\s+/).length);
-        console.log("[DEBUG] Script length:", script.length, "words:", script.split(/\s+/).length, "lines:", script.split('\n').length);
-        console.log("[DEBUG] Verdict length:", verdict.length, "words:", verdict.split(/\s+/).length);
-        console.log("[DEBUG] Closer length:", closer.length, "words:", closer.split(/\s+/).length);
-        
+        console.log("[DEBUG] Hook word count:", hook.split(/\s+/).filter(Boolean).length);
+
+        const hookWordCount = hook.split(/\s+/).filter(Boolean).length;
+        if (hookWordCount < 110 || hookWordCount > 145) {
+          console.warn(
+            "[WARN] EXECUTIVE_SUMMARY word count outside soft band 110–145 (target 120–130):",
+            hookWordCount
+          );
+        }
+
         const scriptWordCount = script.split(/\s+/).filter(Boolean).length;
-        if (scriptWordCount < 80) {
-          console.error("[ERROR] Diagnostic segment too short; expected ~120+ words, got:", scriptWordCount);
+        if (scriptWordCount < MIN_DIAGNOSTIC_WORDS) {
+          console.error(
+            "[ERROR] Diagnostic segment too short; expected at least",
+            MIN_DIAGNOSTIC_WORDS,
+            "words, got:",
+            scriptWordCount
+          );
           console.error("[ERROR] Script content:", script);
-          throw new Error(`AI response too short: Diagnostic analysis has only ${scriptWordCount} words (required: 80+).`);
+          throw new Error(
+            `AI response too short: Diagnostic analysis has only ${scriptWordCount} words (required: ${MIN_DIAGNOSTIC_WORDS}+).`
+          );
+        }
+        if (scriptWordCount < TARGET_DIAGNOSTIC_WORDS) {
+          console.warn(
+            "[WARN] DIAGNOSTIC_ANALYSIS below soft target",
+            TARGET_DIAGNOSTIC_WORDS,
+            "words; got:",
+            scriptWordCount
+          );
         }
         
         // Filter legal topics from diagnostic body (product positioning)
@@ -1339,31 +1378,37 @@ Return JSON only per the schema.`;
     }
   }
 
-  // Build quick wins: Badness Score — top 4 priorities for the report Quick Fixes block
-  // Filter out Legal Compliance items from Quick Fixes (they should only appear in detailed report)
+  // Build quick wins: Badness Score — up to 6 priorities for Quick Fixes after theme dedupe.
+  // Filter out Legal Compliance items from Quick Fixes (they should only appear in detailed report).
+  // Pool is theme-deduped (same elementName + radarCategory) so wording is not repeated.
   const nonLegalItems = allItems.filter((item) => (item.elementName || "").toLowerCase() !== "legal compliance");
-  const itemsWithScores = nonLegalItems.map((item) => [item, calculateBadnessScore(item)] as const);
+  const canonicalNonLegal = canonicalItemsPreservingOrder(nonLegalItems);
+  const itemsWithScores = canonicalNonLegal.map(
+    (item) => [item, calculateBadnessScore(item)] as const
+  );
   const sortedItems = itemsWithScores.sort((a, b) => b[1] - a[1]);
 
-  const topPriorityIssues = buildTopPriorityIssues(nonLegalItems);
+  const topPriorityIssues = buildTopPriorityIssues(canonicalNonLegal);
   console.debug(
     "[topPriorityIssues]",
     topPriorityIssues.map((i) => (i as { elementName?: string }).elementName ?? "?")
   );
 
   const quickWins: any[] = [];
-  for (const [item] of sortedItems.slice(0, 4)) {
+  for (const [item] of sortedItems.slice(0, 6)) {
     const notWorking = item.notWorking || [];
     const nwArr = Array.isArray(notWorking) ? notWorking : [];
-    const fix = item.fix || {};
+    const fix = item.fix ?? {};
+    const fixObj =
+      typeof fix === "object" && fix !== null ? (fix as Record<string, unknown>) : {};
     const quickFixRaw =
       typeof fix === "object" && fix !== null
-        ? fix.quickFix || "Review and improve"
+        ? String(fixObj.quickFix ?? "Review and improve")
         : String(fix || "Review and improve");
     const exampleStr =
-      typeof fix === "object" && fix !== null ? fix.example || "" : "";
+      typeof fix === "object" && fix !== null ? String(fixObj.example ?? "") : "";
     const liftRaw =
-      typeof fix === "object" && fix !== null ? fix.expectedImpact : undefined;
+      typeof fix === "object" && fix !== null ? fixObj.expectedImpact : undefined;
     const problemRaw =
       nwArr.length > 0 ? nwArr.slice(0, 2).join("; ") : "Review and improve";
     let fixOut = formatQuickWinFixText(quickFixRaw, nwArr.map((s) => String(s)));
@@ -1378,6 +1423,16 @@ Return JSON only per the schema.`;
       ? exampleStr
       : normalizeConsultantLanguage(exampleStr);
 
+    problemOut = stripPercentUpliftToQualitative(problemOut);
+    fixOut = stripPercentUpliftToQualitative(fixOut);
+    liftOut = stripPercentUpliftToQualitative(liftOut);
+    const capped = truncateCombinedQuickWinFields(problemOut, fixOut, liftOut, 150);
+    problemOut = capped.problem;
+    fixOut = capped.fix;
+    liftOut = capped.lift;
+
+    const impactTier = normalizeImpactCode(item.impact);
+
     quickWins.push({
       title: item.elementName || "Fix Required",
       elementName: item.elementName || "Fix Required",
@@ -1386,6 +1441,7 @@ Return JSON only per the schema.`;
       example: exampleOut,
       effort: "15min",
       lift: liftOut,
+      ...(impactTier ? { impactCode: impactTier } : {}),
     });
   }
 
@@ -1416,7 +1472,12 @@ Return JSON only per the schema.`;
       });
     }
 
-    detailedAudit[category] = partitionLegalComplianceAuditLast(categoryItems);
+    const mergedCategoryItems =
+      categoryItems.length > 0
+        ? canonicalItemsPreservingOrder(categoryItems as WorkerAuditItem[])
+        : categoryItems;
+
+    detailedAudit[category] = partitionLegalComplianceAuditLast(mergedCategoryItems);
   }
 
   const orderedAllItems = partitionLegalComplianceAuditLast(allItems);
@@ -1660,7 +1721,7 @@ export async function POST(request: NextRequest) {
       return null;
     });
 
-    const { screenshots, htmlContent, pageText, pageHeight } =
+    const { screenshots, htmlContent, pageText, pageHeight, documentHeaders } =
       await captureScreenshotFromUrl(url, device);
 
     const captureMs = Date.now() - tCaptureStart;
@@ -1706,6 +1767,12 @@ export async function POST(request: NextRequest) {
     let seoData: import("@/lib/seo-analyzer").SeoAnalysisResult | null = null;
     let pageType = "unknown";
     let pageSpeed: import("@/lib/pagespeed").PageSpeedSummary | null = null;
+    let performanceAudit: import("@/lib/audits/performance-pagespeed").PerformanceAuditResult | null =
+      null;
+    let onPageSeo: import("@/lib/audits/on-page-seo").OnPageSeoAuditResult | null = null;
+    let metaPreview: import("@/lib/audits/meta-preview-audit").MetaPreviewAuditResult | null = null;
+    let techStackMerged: import("@/lib/audits/tech-stack-audit").TechStackAuditResult | null = null;
+    let behaviourAdvice: import("@/lib/audits/behaviour-tools").BehaviourToolsAdvice | null = null;
 
     try {
       const { analyzeSEO } = await import("@/lib/seo-analyzer");
@@ -1722,10 +1789,39 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const { getPageSpeed } = await import("@/lib/pagespeed");
-      pageSpeed = await getPageSpeed(url);
-    } catch {
-      /* fail silent */
+      const { fetchPerformanceAuditResult } = await import(
+        "@/lib/audits/performance-pagespeed"
+      );
+      const { pageSpeedSummaryFromPerformanceAuditMobile } = await import("@/lib/pagespeed");
+      const { fetchOptionalTechStackApi } = await import(
+        "@/lib/audits/tech-stack-external"
+      );
+      const {
+        mergeTechStackResults,
+        runMetaPreviewAudit,
+        runOnPageSeoAudit,
+        runPatternTechStackAudit,
+        deriveBehaviourToolsAdvice,
+      } = await import("@/lib/audits");
+
+      const perfRes =
+        await fetchPerformanceAuditResult(url).catch(() => null);
+      const techApiTools = await fetchOptionalTechStackApi(url).catch(() => []);
+
+      performanceAudit = perfRes;
+      pageSpeed = pageSpeedSummaryFromPerformanceAuditMobile(perfRes ?? null);
+
+      const techLocal = runPatternTechStackAudit(htmlContent);
+      techStackMerged = mergeTechStackResults(techLocal, techApiTools);
+      behaviourAdvice = deriveBehaviourToolsAdvice(techStackMerged);
+
+      onPageSeo = runOnPageSeoAudit(htmlContent, url, documentHeaders);
+      metaPreview = runMetaPreviewAudit(htmlContent, url);
+    } catch (e) {
+      console.warn(
+        "[roast] extended audits:",
+        safeErrorMessage(e instanceof Error ? e.message : String(e))
+      );
     }
 
     const tCompileStart = Date.now();
@@ -1733,12 +1829,15 @@ export async function POST(request: NextRequest) {
     const result = await compileRoast(imageInputs, pageText, htmlContent, url);
     const compileMs = Date.now() - tCompileStart;
 
-    (result as { seo?: unknown; page_type?: string; performance?: unknown }).seo =
-      seoData ?? null;
-    (result as { seo?: unknown; page_type?: string; performance?: unknown }).page_type =
-      pageType ?? "unknown";
-    (result as { seo?: unknown; page_type?: string; performance?: unknown }).performance =
-      pageSpeed ?? null;
+    const enriched = result as Record<string, unknown>;
+    enriched.seo = seoData ?? null;
+    enriched.page_type = pageType ?? "unknown";
+    enriched.performance = pageSpeed ?? null;
+    enriched.performance_audit = performanceAudit ?? null;
+    enriched.on_page_seo = onPageSeo ?? null;
+    enriched.meta_preview = metaPreview ?? null;
+    enriched.tech_stack = techStackMerged ?? null;
+    enriched.behaviour_tools = behaviourAdvice ?? null;
 
     // Overall score stays the mean of the six radar pillars (same as the Site Score grid).
     // Do not blend SEO score into headline overall — it caused inflated totals vs. displayed axes.
@@ -1803,6 +1902,22 @@ export async function POST(request: NextRequest) {
     syncOverallScoreWithRadarPayload(
       result as Parameters<typeof syncOverallScoreWithRadarPayload>[0]
     );
+
+    const qwSource =
+      (((result as { quickWins?: unknown }).quickWins ??
+        (result as { quick_wins?: unknown }).quick_wins) as unknown[]) ?? [];
+    const quickList = Array.isArray(qwSource) ? qwSource : [];
+    const radarScoresOut = (result as { radar_scores?: Record<string, unknown> }).radar_scores;
+    const radarMetricsOut = (result as { radarMetrics?: Record<string, unknown> }).radarMetrics;
+    (result as Record<string, unknown>).experimentBacklog = buildExperimentBacklog(
+      quickList as Parameters<typeof buildExperimentBacklog>[0]
+    );
+    (result as Record<string, unknown>).implementationChecklist =
+      buildImplementationChecklist(
+        quickList as Parameters<typeof buildImplementationChecklist>[0],
+        radarScoresOut,
+        radarMetricsOut
+      );
 
     if (chargeUid) {
       const r = result as Record<string, unknown>;

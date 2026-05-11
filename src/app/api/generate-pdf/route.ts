@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import chromium from "@sparticuz/chromium";
-import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { resolvePuppeteerLaunchExecutablePath } from "@/lib/chromium-executable";
 import { getPuppeteerWithStealth } from "@/lib/screenshot";
-import { generateFreeRoastCertificateHTML, generatePaidAgencyReportHTML } from "@/lib/pdf-templates";
+import {
+  generateFreeRoastCertificateHTML,
+  generatePaidAgencyReportHTML,
+  generateFreeRoastCertificateHTMLV2,
+  generatePaidAgencyReportHTMLV2,
+} from "@/lib/pdf-templates";
 import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 
 export const maxDuration = 120;
@@ -17,6 +22,8 @@ export async function POST(request: NextRequest) {
       isPaid = false,
       url = "https://siteroast.ai",
       calculator,
+      reportVersion = "v1",
+      reportId = "export",
     } = body;
 
     if (!roastData) {
@@ -26,10 +33,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate HTML based on tier
-    const html = isPaid
-      ? await generatePaidAgencyReportHTML(roastData, url, calculator)
-      : await generateFreeRoastCertificateHTML(roastData, url, calculator);
+    const html =
+      reportVersion === "v2"
+        ? isPaid
+          ? await generatePaidAgencyReportHTMLV2(roastData, url, calculator, reportId)
+          : await generateFreeRoastCertificateHTMLV2(roastData, url, calculator, reportId)
+        : isPaid
+          ? await generatePaidAgencyReportHTML(roastData, url, calculator)
+          : await generateFreeRoastCertificateHTML(roastData, url, calculator);
 
     const puppeteer = await getPuppeteerWithStealth();
 
@@ -45,13 +56,20 @@ export async function POST(request: NextRequest) {
       defaultViewport: { width: 1200, height: 1600 },
     };
 
+    const exePath = await resolvePuppeteerLaunchExecutablePath();
     if (shouldUseBundledChromium()) {
       launchOptions.args = [
         ...chromium.args,
         "--disable-blink-features=AutomationControlled",
         "--disable-features=IsolateOrigins,site-per-process",
       ];
-      launchOptions.executablePath = await resolveChromiumExecutablePath();
+    }
+    if (exePath) {
+      launchOptions.executablePath = exePath;
+    } else if (!shouldUseBundledChromium()) {
+      console.warn(
+        "[generate-pdf] No Chrome/Chromium executable found. Install Chrome or Edge or set CHROMIUM_EXECUTABLE_PATH."
+      );
     }
 
     browser = await puppeteer.launch(launchOptions);
@@ -96,9 +114,14 @@ export async function POST(request: NextRequest) {
     await browser.close();
     browser = null;
 
-    const filename = isPaid 
-      ? 'roast-report-full.pdf' 
-      : 'roast-report-teaser.pdf';
+    const filename =
+      reportVersion === "v2"
+        ? isPaid
+          ? "roast-report-full-v2.pdf"
+          : "roast-report-teaser-v2.pdf"
+        : isPaid
+          ? "roast-report-full.pdf"
+          : "roast-report-teaser.pdf";
 
     const bytes = new Uint8Array(pdfBuffer);
     const ab = bytes.buffer.slice(

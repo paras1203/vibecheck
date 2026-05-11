@@ -12,6 +12,7 @@ export type QuickWinLike = {
   example?: string;
   effort?: string;
   lift?: string;
+  impactCode?: string;
 };
 
 type AuditItemLike = {
@@ -41,16 +42,14 @@ function fixQuickString(fix: AuditItemLike["fix"]): string {
   return typeof fix === "string" ? fix : "";
 }
 
-/**
- * Ensures up to 4 quick wins for the report UI. Older cached roasts may only
- * have 3 server-built wins; we pad from failed / weak audit items when possible.
- */
-export function ensureQuickWinsUpToFour(
+/** Pads quick wins from audit_items when the API returned fewer than `max` (default 6). */
+export function ensureQuickWinsUpTo(
   quickWins: QuickWinLike[] | undefined | null,
-  auditItems: AuditItemLike[] | undefined | null
+  auditItems: AuditItemLike[] | undefined | null,
+  max = 6
 ): QuickWinLike[] {
-  const base = [...(quickWins ?? [])].slice(0, 4);
-  if (base.length >= 4) return base;
+  const base = [...(quickWins ?? [])].slice(0, max);
+  if (base.length >= max) return base;
 
   const used = new Set(
     base.map((w) => (w.title || w.elementName || "").trim().toLowerCase()).filter(Boolean)
@@ -60,7 +59,7 @@ export function ensureQuickWinsUpToFour(
   const sorted = [...ordered].sort((a, b) => statusRank(a.status) - statusRank(b.status));
 
   for (const item of sorted) {
-    if (base.length >= 4) break;
+    if (base.length >= max) break;
     const name = auditElementLabel(item);
     if (!name || isDeprioritizedLegalAuditElement(name)) continue;
     const key = name.toLowerCase();
@@ -81,4 +80,12 @@ export function ensureQuickWinsUpToFour(
   }
 
   return base;
+}
+
+/** @deprecated Prefer ensureQuickWinsUpTo(..., 4) where a 4-cap is required */
+export function ensureQuickWinsUpToFour(
+  quickWins: QuickWinLike[] | undefined | null,
+  auditItems: AuditItemLike[] | undefined | null
+): QuickWinLike[] {
+  return ensureQuickWinsUpTo(quickWins, auditItems, 4);
 }

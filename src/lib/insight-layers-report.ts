@@ -56,7 +56,7 @@ function priorityBadgeHtml(esc: (s: string) => string, priority: InsightPriority
   return `<span class="insight-priority" style="border-color:${c}44;color:${c};background:${c}14;">${esc(priority)} priority</span>`;
 }
 
-function layerBlockHtml(
+export function layerBlockHtml(
   esc: (s: string) => string,
   cardTitle: string,
   layer: InsightLayerBlock,

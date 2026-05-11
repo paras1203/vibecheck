@@ -1,4 +1,25 @@
 
+## 2026-05-11 - Billing & app shell responsive (Railway mobile)
+
+**Category:** Feature Request
+
+**Instruction:**
+> After Railway hosting, billing on mobile showed a thin content column (~30–40% width) with most of the viewport blank on the left; inspect device-wise optimisation for desktop, mobile, and tablets and fix layout.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-08 - Report narrative + audit worker prompts (Phase 4)
+
+**Category:** Core Logic / Feature Request
+
+**Instruction:**
+> (Plan Phases 3–6) Executive summary budget ≈120–130 words with 3–4 numbered failure bullets; diagnostic ≈200–220 words, adds evidence/implication without repeating exec bullets verbatim; diagnostic floor ~180 words (throw band); hook soft warn ~110–145 words; `AUDIT_WORKER_GLOBAL_CRO_RULES` (+ workers): keep each `notWorking` entry and each `fix.quickFix` to 1–2 short sentences.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
 
 ## 2026-05-08 - Dodo Payments inline checkout
 

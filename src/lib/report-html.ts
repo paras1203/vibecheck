@@ -8,7 +8,7 @@ import {
 import { buildRadarSvg, buildScrollHeatStripSvg } from "./report-charts-svg";
 import { buildHeroSnapshotFigureHtml } from "./report-hero-snapshot-html";
 import { FULL_DIAGNOSTIC_UPGRADE_HOOK, PRO_UPGRADE_STRIP } from "./report-copy";
-import { formatEffortLine, formatImpactLine, scrollDepthNarrative } from "./report-ui";
+import { formatEffortLine, formatImpactLine, formatQuickWinSubheadLine, scrollDepthNarrative } from "./report-ui";
 import {
   formatIntelScoreFootnote,
   INTEL_ESTIMATED_IMPROVEMENT,
@@ -36,12 +36,21 @@ import {
 import {
   buildExecutiveDiagnosticInnerHtml,
 } from "@/lib/report-diagnostic-section";
+import { meanRadarSiteScore, verdictLabelFromSiteScore } from "@/lib/site-score";
 import { BRAND_NAME } from "@/lib/brand";
 import { buildPersonalizedInsiderLines } from "@/lib/personalized-insider";
 import { heroScreenshotDataUrl } from "@/lib/hero-image";
 import { buildSeoPerformanceAppendixHtml } from "@/lib/report-seo-appendix";
+import {
+  buildExperimentBacklogSectionHtml,
+  buildHowToReadThisReportHtml,
+  buildImplementationChecklistHtml,
+  buildReportAnalyticsReadinessHtml,
+  buildReportContextCardHtml,
+} from "@/lib/report-artifacts-html";
+import type { ExperimentBacklogItem, ImplementationChecklistItem } from "@/types/report-artifacts";
 import { buildRadarPillarTilesHtml } from "@/lib/report-radar-tiles-html";
-import { meanRadarSiteScore, verdictLabelFromSiteScore } from "@/lib/site-score";
+import { quickWinFixBulletText } from "@/lib/quick-wins-format";
 import {
   averageScoreForCategoryItems,
   displayNameForCategoryKey,
@@ -60,6 +69,7 @@ export type QuickWin = {
   example?: string;
   effort?: string;
   lift?: string;
+  impactCode?: string;
 };
 
 export type AuditReportPayload = {
@@ -92,6 +102,8 @@ export type AuditReportPayload = {
   }>;
   pageHeight?: number;
   price_guess?: number;
+  price_from_page?: boolean;
+  price_billing_note?: string;
   industry_guess?: string;
   audited_url?: string;
   /** Roast capture device (parity with hero refetch). */
@@ -106,8 +118,15 @@ export type AuditReportPayload = {
   page_type?: string;
   performance?: PageSpeedSummary | null;
   performanceGemini?: PerformanceGeminiSummary | null;
+  performance_audit?: import("@/lib/audits/performance-pagespeed").PerformanceAuditResult | null;
+  on_page_seo?: import("@/lib/audits/on-page-seo").OnPageSeoAuditResult | null;
+  meta_preview?: import("@/lib/audits/meta-preview-audit").MetaPreviewAuditResult | null;
+  tech_stack?: import("@/lib/audits/tech-stack-audit").TechStackAuditResult | null;
+  behaviour_tools?: import("@/lib/audits/behaviour-tools").BehaviourToolsAdvice | null;
   trafficEstimate?: TrafficEstimate;
   scrollEffectiveness?: ScrollEffectiveness;
+  experimentBacklog?: ExperimentBacklogItem[];
+  implementationChecklist?: ImplementationChecklistItem[];
 };
 
 function escapeHtml(s: string): string {
@@ -129,6 +148,22 @@ function industryInsiderHtmlFromAudit(data: AuditReportPayload, escape: (s: stri
   return lines.map((l) => `<p class="report-prose">${escape(l)}</p>`).join("");
 }
 
+function quickWinHtmlBlock(win: QuickWin, i: number, esc: (s: string) => string): string {
+  const title = win.title || win.elementName || `Quick win ${i + 1}`;
+  const sub = esc(formatQuickWinSubheadLine(win.effort, win.impactCode, win.lift));
+  const fixText = esc(quickWinFixBulletText(win.fix || "", win.example || ""));
+  const probLi = win.problem
+    ? `<li><strong>Problem:</strong> ${esc(win.problem)}</li>`
+    : "";
+  const impLi = win.lift ? `<li><strong>Impact:</strong> ${esc(win.lift)}</li>` : "";
+  return `<div class="quick-win">
+    <div class="report-card__index">#${i + 1}</div>
+    <div class="report-card__title report-nojustify">${esc(title)}</div>
+    <p class="muted report-nojustify" style="font-size:0.8125rem">${sub}</p>
+    <ul style="margin:8px 0 0;padding-left:1.1rem;font-size:0.8125rem" class="report-nojustify">${probLi}<li><strong>Fix:</strong> ${fixText}</li>${impLi}</ul>
+  </div>`;
+}
+
 function priorityMatrixRows(quickWins: QuickWin[]): string {
   if (quickWins.length === 0) {
     return `<tr><td colspan="4">No priority items in this dataset.</td></tr>`;
@@ -136,11 +171,14 @@ function priorityMatrixRows(quickWins: QuickWin[]): string {
   return quickWins
     .map((win, idx) => {
       const title = win.title || win.elementName || "Quick win";
+      const impactCell = win.impactCode
+        ? `${win.impactCode} — ${(win.lift || "").trim()}`.trim()
+        : win.lift || "—";
       return `<tr>
         <td>#${idx + 1}</td>
         <td>${escapeHtml(title)}</td>
         <td>${escapeHtml(win.effort || "—")}</td>
-        <td>${escapeHtml(win.lift || "—")}</td>
+        <td>${escapeHtml(impactCell)}</td>
       </tr>`;
     })
     .join("");
@@ -392,17 +430,7 @@ export function generateAuditReportHTML(
 
   const freeQuickWins = quickWins
     .slice(0, 8)
-    .map((win, i) => {
-      const title = win.title || win.elementName || `Quick win ${i + 1}`;
-      const effortLine = escapeHtml(formatEffortLine(win.effort));
-      const impactLine = escapeHtml(formatImpactLine(win.lift || win.fix));
-      return `<div class="quick-win">
-        <div class="report-card__index">#${i + 1}</div>
-        <div class="report-card__title report-nojustify">${escapeHtml(title)}</div>
-        <p class="muted report-nojustify">${effortLine}</p>
-        <p class="muted report-nojustify">${impactLine}</p>
-      </div>`;
-    })
+    .map((win, i) => quickWinHtmlBlock(win as QuickWin, i, escapeHtml))
     .join("");
 
   const matrix = isPaid
@@ -418,18 +446,7 @@ export function generateAuditReportHTML(
   const paidQuickDetail =
     isPaid && quickWins.length
       ? `<div class="section report-major"><h2>Quick wins</h2>${quickWins
-          .map((win, i) => {
-            const t = win.title || win.elementName || `Item ${i + 1}`;
-            const impact = win.lift || "";
-            return `<div class="quick-win">
-            <div class="report-card__index">#${i + 1}</div>
-            <div class="report-card__title report-nojustify">${escapeHtml(t)}</div>
-            ${win.problem ? `<p class="report-nojustify"><span class="report-label" style="display:inline;margin-right:6px;">Problem</span> ${escapeHtml(win.problem)}</p>` : ""}
-            ${win.fix ? `<p class="report-nojustify"><span class="report-label" style="display:inline;margin-right:6px;">Fix</span> ${escapeHtml(win.fix)}</p>` : ""}
-            ${win.example ? `<pre>${escapeHtml(win.example)}</pre>` : ""}
-            ${impact || win.effort ? `<p class="muted report-nojustify"><span class="report-label" style="display:inline;margin-right:6px;">Impact / effort</span> ${escapeHtml(impact || "—")}${win.effort ? ` · ${escapeHtml(win.effort)}` : ""}</p>` : ""}
-          </div>`;
-          })
+          .map((win, i) => quickWinHtmlBlock(win as QuickWin, i, escapeHtml))
           .join("")}</div>`
       : "";
 
@@ -477,6 +494,12 @@ export function generateAuditReportHTML(
   const execDiagnostic = buildExecutiveDiagnosticSection(data);
   const visualSection = isPaid ? buildVisualAnalysisSection(data) : "";
 
+  const readGuideHtml = buildHowToReadThisReportHtml(escapeHtml);
+  const scanContextHtml = buildReportContextCardHtml(data, escapeHtml);
+  const analyticsReadyHtml = buildReportAnalyticsReadinessHtml(data, escapeHtml);
+  const experimentHtml = buildExperimentBacklogSectionHtml(data, escapeHtml);
+  const checklistHtml = buildImplementationChecklistHtml(data, escapeHtml);
+
   if (!isPaid) {
     return `<!DOCTYPE html>
 <html lang="en">
@@ -503,14 +526,20 @@ export function generateAuditReportHTML(
 
   ${buildExecutiveDiagnosticSection(data)}
 
+  ${readGuideHtml}
+  ${scanContextHtml}
+  ${analyticsReadyHtml}
+
   ${freeRevenueSection}
 
   ${freeInsightSection}
 
   ${
     quickWins.length
-      ? `<div class="section report-major"><h2>Quick wins &amp; impact</h2><p class="intel-micro">${intelEstNote} when prioritized fixes ship (typical range, not guaranteed). ${intelBenchNote}.</p>${freeQuickWins}</div>`
-      : ""
+      ? `<div class="section report-major"><h2>Quick wins &amp; impact</h2><p class="intel-micro">${intelEstNote} when prioritized fixes ship (typical range, not guaranteed). ${intelBenchNote}.</p>${freeQuickWins}</div>
+      ${experimentHtml}
+      ${checklistHtml}`
+      : `${experimentHtml}${checklistHtml}`
   }
 
   <div class="section report-major">
@@ -551,11 +580,16 @@ export function generateAuditReportHTML(
   ${paidCover}
   <div class="report-body">
   ${execDiagnostic}
+  ${readGuideHtml}
+  ${scanContextHtml}
+  ${analyticsReadyHtml}
   ${revenuePaidSection}
   ${insightPaidSection}
   ${siteScorePaidSection}
   ${matrix}
   ${paidQuickDetail}
+  ${experimentHtml}
+  ${checklistHtml}
   ${visualSection}
   ${deepDiveFromDetailed(data, true)}
   ${elementAuditHtml(auditItems, true)}

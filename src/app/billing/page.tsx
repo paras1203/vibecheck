@@ -273,7 +273,7 @@ function BillingPageContent() {
     >
       <AppSidebar />
       <SidebarInset className="flex-1 overflow-auto">
-        <div className="ml-[14.4rem] flex min-h-screen w-[calc(100%-14.4rem)] max-w-[min(100%,88rem)] flex-col items-stretch gap-8 bg-background p-6 pt-8 md:p-10 md:pt-10">
+        <div className="flex min-h-screen w-full min-w-0 max-w-[min(100%,88rem)] flex-col items-stretch gap-8 bg-background p-6 pt-8 md:ml-[14.4rem] md:w-[calc(100%-14.4rem)] md:p-10 md:pt-10">
           <div className="w-full max-w-4xl">
             <div className="mb-8">
               <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">

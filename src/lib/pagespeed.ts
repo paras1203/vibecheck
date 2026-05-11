@@ -1,86 +1,57 @@
-export type PageSpeedStrategy = "mobile" | "desktop";
+import { fetchPerformanceAuditResult } from "@/lib/audits/performance-pagespeed";
+import type {
+  PerformanceAuditResult,
+  PerformanceStrategyResult,
+} from "@/lib/audits/performance-pagespeed";
+import type { PageSpeedStrategy } from "@/lib/audits/types";
+
+export type { PageSpeedStrategy };
 
 export type PageSpeedSummary = {
   performanceScore?: number;
   lcp?: string;
   cls?: string;
   tbt?: string;
+  /** Lab INP string from Lighthouse when present */
+  inp?: string;
   strategy?: PageSpeedStrategy;
 };
 
-const PSI_TIMEOUT_MS = 25_000;
-
-function pagespeedStrategy(): PageSpeedStrategy {
-  const s = process.env.PAGESPEED_STRATEGY?.trim().toLowerCase();
-  return s === "desktop" ? "desktop" : "mobile";
-}
-
-export async function getPageSpeed(url: string): Promise<PageSpeedSummary | null> {
-  try {
-    const apiKey = process.env.PAGESPEED_API_KEY?.trim();
-    if (!apiKey) {
-      return null;
-    }
-
-    const strategy = pagespeedStrategy();
-    const endpoint = new URL("https://www.googleapis.com/pagespeedonline/v5/runPagespeed");
-    endpoint.searchParams.set("url", url);
-    endpoint.searchParams.set("key", apiKey);
-    endpoint.searchParams.set("strategy", strategy);
-    endpoint.searchParams.append("category", "PERFORMANCE");
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PSI_TIMEOUT_MS);
-
-    let res: Response;
-    try {
-      res = await fetch(endpoint.toString(), { signal: controller.signal });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (!res.ok) {
-      return null;
-    }
-
-    const data = (await res.json()) as {
-      lighthouseResult?: {
-        categories?: { performance?: { score?: number | null } };
-        audits?: {
-          "largest-contentful-paint"?: { displayValue?: string };
-          "cumulative-layout-shift"?: { displayValue?: string };
-          "total-blocking-time"?: { displayValue?: string };
-        };
-      };
-    };
-
-    const perf = data.lighthouseResult?.categories?.performance?.score;
-    const performanceScore =
-      typeof perf === "number" && Number.isFinite(perf)
-        ? Math.round(perf * 100)
-        : undefined;
-
-    const lcp = data.lighthouseResult?.audits?.["largest-contentful-paint"]?.displayValue;
-    const cls = data.lighthouseResult?.audits?.["cumulative-layout-shift"]?.displayValue;
-    const tbt = data.lighthouseResult?.audits?.["total-blocking-time"]?.displayValue;
-
-    if (
-      performanceScore == null &&
-      lcp == null &&
-      cls == null &&
-      tbt == null
-    ) {
-      return null;
-    }
-
-    return {
-      strategy,
-      ...(performanceScore != null ? { performanceScore } : {}),
-      ...(lcp != null ? { lcp } : {}),
-      ...(cls != null ? { cls } : {}),
-      ...(tbt != null ? { tbt } : {}),
-    };
-  } catch {
+function strategyToSummary(
+  r: PerformanceStrategyResult | null | undefined
+): PageSpeedSummary | null {
+  if (!r) return null;
+  if (
+    r.performanceScore == null &&
+    (r.lcp == null || r.lcp === "") &&
+    (r.cls == null || r.cls === "") &&
+    (r.tbt == null || r.tbt === "") &&
+    (r.inp == null || r.inp === "")
+  ) {
     return null;
   }
+  return {
+    strategy: r.strategy,
+    ...(r.performanceScore != null ? { performanceScore: r.performanceScore } : {}),
+    ...(r.lcp != null && r.lcp !== "" ? { lcp: r.lcp } : {}),
+    ...(r.cls != null && r.cls !== "" ? { cls: r.cls } : {}),
+    ...(r.tbt != null && r.tbt !== "" ? { tbt: r.tbt } : {}),
+    ...(r.inp != null && r.inp !== "" ? { inp: r.inp } : {}),
+  };
+}
+
+/**
+ * PageSpeed Insights — uses mobile Lighthouse slice aligned with roast `performance`.
+ */
+export async function getPageSpeed(url: string): Promise<PageSpeedSummary | null> {
+  const full = await fetchPerformanceAuditResult(url);
+  if (!full) return null;
+  return strategyToSummary(full.mobile);
+}
+
+export function pageSpeedSummaryFromPerformanceAuditMobile(
+  full: PerformanceAuditResult | null
+): PageSpeedSummary | null {
+  if (!full) return null;
+  return strategyToSummary(full.mobile);
 }

@@ -1,6 +1,6 @@
 import chromium from "@sparticuz/chromium";
 import type { Browser } from "puppeteer-core";
-import { resolveChromiumExecutablePath } from "@/lib/chromium-executable";
+import { resolvePuppeteerLaunchExecutablePath } from "@/lib/chromium-executable";
 import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 import { getPuppeteerWithStealth } from "./screenshot";
 
@@ -9,6 +9,11 @@ import { getPuppeteerWithStealth } from "./screenshot";
  * Captures screenshots AND extracts HTML/text content in a single execution
  * Returns: { screenshots: base64[], htmlContent: string, pageText: string, pageHeight: number }
  */
+export type CaptureDocumentHeaders = {
+  /** Main document navigation response header, when available */
+  xRobotsTag?: string;
+};
+
 export async function captureScreenshotFromUrl(
   url: string,
   device: "desktop" | "mobile" = "desktop"
@@ -17,6 +22,7 @@ export async function captureScreenshotFromUrl(
   htmlContent: string;
   pageText: string;
   pageHeight: number;
+  documentHeaders?: CaptureDocumentHeaders;
 }> {
   let browser: Browser | null = null;
   const maxRetries = 3;
@@ -96,9 +102,16 @@ export async function captureScreenshotFromUrl(
         args: stealthArgs,
       };
 
+      const exePath = await resolvePuppeteerLaunchExecutablePath();
       if (shouldUseBundledChromium()) {
         launchOptions.args = [...chromium.args, ...stealthArgs];
-        launchOptions.executablePath = await resolveChromiumExecutablePath();
+      }
+      if (exePath) {
+        launchOptions.executablePath = exePath;
+      } else if (!shouldUseBundledChromium()) {
+        console.warn(
+          "[capture] No Chrome/Chromium executable found. Install Chrome or Edge, set CHROMIUM_EXECUTABLE_PATH, or run: npx puppeteer browsers install chrome"
+        );
       }
 
       browser = await puppeteer.launch(launchOptions);
@@ -147,12 +160,17 @@ export async function captureScreenshotFromUrl(
       const waitStrategies = ["domcontentloaded", "load", "networkidle"];
       const waitStrategy = waitStrategies[Math.min(attempt, waitStrategies.length - 1)];
 
+      let xRobotsFromResponse: string | undefined;
       try {
-        await page.goto(normalizedUrl, {
+        const navResponse = await page.goto(normalizedUrl, {
           waitUntil: waitStrategy as any,
           timeout: 60000,
           referer: "https://www.google.com/",
         });
+        const xr = navResponse?.headers()?.["x-robots-tag"];
+        if (typeof xr === "string" && xr.trim()) {
+          xRobotsFromResponse = xr.trim();
+        }
         console.log(`[DEBUG] Navigation complete (used ${waitStrategy} wait strategy)`);
       } catch (navError: any) {
         const errorMsg = String(navError).toLowerCase();
@@ -293,6 +311,9 @@ export async function captureScreenshotFromUrl(
         htmlContent,
         pageText,
         pageHeight,
+        ...(xRobotsFromResponse != null
+          ? { documentHeaders: { xRobotsTag: xRobotsFromResponse } }
+          : {}),
       };
     } catch (e: any) {
       const errorMsg = String(e).toLowerCase();

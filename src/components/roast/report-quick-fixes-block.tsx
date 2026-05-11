@@ -10,7 +10,7 @@ import {
   QuickFixViewDetailsTrigger,
   type QuickFixDetailWin,
 } from "@/components/roast/quick-fix-detail-dialog";
-import { formatEffortLine, formatImpactLine } from "@/lib/report-ui";
+import { QuickWinCardBody } from "@/components/roast/quick-win-card-body";
 import { INTEL_ESTIMATED_IMPROVEMENT } from "@/lib/report-intelligence";
 import { ChevronDown, Rocket } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ type Props = {
   onUnlockFullReport: () => void;
 };
 
-const MAX_FIXES = 4;
+const MAX_FIXES = 6;
 
 export function ReportQuickFixesBlock({
   quickWins,
@@ -51,8 +51,6 @@ export function ReportQuickFixesBlock({
         {displayed.length > 0 ? (
           <>
             {displayed.map((win, idx) => {
-              const effortLine = formatEffortLine(win.effort);
-              const impactLine = formatImpactLine(win.lift);
               const detailLocked = !hasFullReportAccess && idx >= 1;
               const expanded = openFreeIdx === idx;
 
@@ -63,13 +61,13 @@ export function ReportQuickFixesBlock({
                     className="relative rounded-lg border border-border bg-surface-2/35 p-4 transition-colors hover:bg-surface-2/50"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="mb-2 text-sm font-semibold leading-tight">
-                          {idx + 1}. {win.title || win.elementName || "Quick win"}
-                        </h4>
-                        <p className="text-xs text-muted-foreground">{effortLine}</p>
-                        <p className="text-xs text-muted-foreground">{impactLine}</p>
-                      </div>
+                      <QuickWinCardBody
+                        win={{
+                          ...win,
+                          title: `${idx + 1}. ${win.title || win.elementName || "Quick win"}`,
+                          elementName: undefined,
+                        }}
+                      />
                       <QuickFixDetailDialog win={win} trigger={<QuickFixViewDetailsTrigger />} />
                     </div>
                   </div>
@@ -116,10 +114,13 @@ export function ReportQuickFixesBlock({
                   {expanded ? (
                     <div className="border-t border-border-muted bg-surface-2/20 px-4 pb-4 pt-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-xs text-muted-foreground">{effortLine}</p>
-                          <p className="text-xs text-muted-foreground">{impactLine}</p>
-                        </div>
+                        <QuickWinCardBody
+                          win={{
+                            ...win,
+                            title: `${idx + 1}. ${win.title || win.elementName || "Quick win"}`,
+                            elementName: undefined,
+                          }}
+                        />
                         <QuickFixDetailDialog win={win} trigger={<QuickFixViewDetailsTrigger />} />
                       </div>
                     </div>

@@ -2,6 +2,8 @@
 
 **Scope:** This list is derived from the production full-audit path (`POST /api/roast` in `src/app/api/roast/route.ts`) and the libraries it calls. Items are **what the product actually evaluates or derives**, not marketing copy.
 
+**Companion docs:** See [`docs/audit-current-state.md`](docs/audit-current-state.md) and [`docs/audit-design.md`](docs/audit-design.md) for the expanded programmatic audit layer (PSI aggregate, Cheerio SEO, tech stack, meta preview).
+
 **How to read “importance”**
 
 - **Gemini worker items** each carry model-assigned **`impact`**: `HI` (high), `MI` (medium), `LI` (low). These feed **weighted radar scores** (status points × impact multiplier) in `compileRoast`.
@@ -103,21 +105,45 @@
 | External links | **Count** of outbound links (excluding mailto/tel/js/hash) | Diagnostic | `externalLinks`. |
 | Composite | **`score`** = 100 − 10 × issue count (clamped 0–100) | Summary | Single headline SEO score in payload. |
 
+**Note:** **`analyzeSEO`** remains the legacy scorecard consumed by SEO health UI and appendix. Richer Cheerio checks also populate **`on_page_seo`** (see **Expanded programmatic audits** immediately after §6); both may coexist without removing legacy issue types.
+
 ---
 
 ## 6. Google PageSpeed Insights (Lighthouse) — lab performance
 
-**Source:** `src/lib/pagespeed.ts` (`getPageSpeed`). Requires `PAGESPEED_API_KEY`. Strategy from `PAGESPEED_STRATEGY` (default **mobile**).
+**Source:** PSI v5 HTTP API (`src/lib/audits/performance-pagespeed.ts`): **`fetchPerformanceAuditResult`** (dual strategy) + **`getPageSpeedReport(url, strategy)`**. Legacy rollup: **`src/lib/pagespeed.ts`** (`pageSpeedSummaryFromPerformanceAuditMobile`, **`getPageSpeed`**).
+
+**Requirements:** **`PAGESPEED_API_KEY`**. Runs **mobile + desktop** in parallel when aggregated fetch runs (request timeouts ~25s per leg). **`PAGESPEED_STRATEGY`** is not the sole driver dual vs single—the aggregate path favors both strategies when the API key exists; the stored legacy **`performance`** object reflects the **mobile** slice.
 
 | Subcategory | Signal | Importance | Impact |
 |-------------|--------|------------|--------|
-| Lighthouse | **Performance category score** (0–100) | High when present | Correlates with perceived speed and mobile conversion. |
-| Core-related audits | **LCP** display value | High | Loading responsiveness. |
-| Core-related audits | **CLS** display value | High | Layout stability; affects mis-taps and trust. |
-| Core-related audits | **TBT** display value | Medium–high | Main-thread blocking; affects interactivity. |
-| Strategy | **mobile** vs **desktop** run | Context | Explains which device class the lab numbers represent. |
+| Lighthouse | **Performance category score** per strategy | High when present | Correlates with perceived speed and mobile conversion. |
+| Lab metrics | **LCP**, **CLS**, **TBT**, **INP** (when Lighthouse exposes `interaction-to-next-paint`) | High–medium | Loading, stability, blocking, responsiveness. |
+| Opportunities | Lighthouse audits with **`details.type === opportunity`** | High for fixes | Sorted by estimated savings (`overallSavingsMs` / wasted ms when present), capped (~8). |
+| Diagnostics | Selected **informative / numeric** audits | Diagnostic | Highlights likely lab-only findings, capped (~8). |
+| Full object | **`performance_audit`** on API JSON | — | Canonical store for desktop + lists. |
+| Rollup UI / Gemini seed | **`performance`** | — | Backward-compatible field for dashboard + **`summarizePageSpeedWithGemini`**. |
 
-**Optional narrative layer:** `src/lib/pagespeed-gemini-summary.ts` — Gemini writes a **summary** and **two quick fixes** strictly from the **provided** metrics (no invented numbers).
+**Optional narrative layer:** `src/lib/pagespeed-gemini-summary.ts` — Gemini receives **`performance`** JSON including **`strategy`**, **`inp`** when populated; **summary** + **two quick fixes**, no invented metrics.
+
+---
+
+## Expanded programmatic audits (additive payload + exports)
+
+**Source:** `src/lib/audits/*`, orchestrated from `src/app/api/roast/route.ts`. These fields are **additive**; they supplement but do not replace **`seo`**, **`performance`** (rollup), or worker rows.
+
+**Capture header:** `src/lib/capture.ts` may attach **`documentHeaders.xRobotsTag`** from the main document navigation response (feeds **`on_page_seo`** alongside meta robots parsing).
+
+| Payload key | Module(s) | What is evaluated |
+|-------------|-----------|-------------------|
+| **`performance_audit`** | `performance-pagespeed.ts` | When `PAGESPEED_API_KEY` is set: **parallel** PSI v5 **mobile + desktop**; per-strategy Lighthouse **performance** score plus **LCP**, **INP**, **CLS**, **TBT** display strings where present; capped lists of Lighthouse **opportunities** and **diagnostics** (title, optional `displayValue`, id). |
+| **`performance`** | `pagespeed.ts` | Legacy **`PageSpeedSummary`** built from the **mobile** slice of **`performance_audit`** (includes **`inp`** when available). Existing cards + **`summarizePageSpeedWithGemini`** use this shape. |
+| **`on_page_seo`** | `on-page-seo.ts` | Cheerio: title / meta presence and length bands (**30–65** / **100–160**), truncation hints; **canonical** resolution + validity + host match vs audited URL; **robots** meta content (`noindex` / `nofollow`); **`X-Robots-Tag`** when capture exposed it; H1/H2/H3 counts and skipped-level heuristic; image alt percentage + **hero** alt heuristic (`main`/hero selectors); internal vs external links + flags (none / external-only); human **`messages[]`**. |
+| **`meta_preview`** | `meta-preview-audit.ts` | Title, meta description, robots, canonical, **Open Graph** and **Twitter** tag reads; SERP-ish and OG **preview strings**; missing OG/Twitter booleans. |
+| **`tech_stack`** | `tech-stack-audit.ts`, `tech-stack-registry.ts`, optional **`tech-stack-external.ts`** | Substring/pattern fingerprints (GA, GTM, Meta Pixel, Microsoft Clarity, Hotjar, Intercom, Crisp, HubSpot, LinkedIn Insight, etc.). If **`TECHSTACK_API_URL`** is set, optional HTTP merge (POST `{ url }`, optional **`TECHSTACK_API_KEY`** Bearer), dedupe by **`id`**. |
+| **`behaviour_tools`** | `behaviour-tools.ts` | Flags / copy for behavioural analytics (notably Microsoft Clarity vs other heatmaps) derived from **`tech_stack`**. |
+
+**Report parity:** Structured HTML for exports is appended via **`report-extended-audit-appendix.ts`** as part of **`buildSeoPerformanceAppendixHtml`** (`report-seo-appendix.ts`), so **download HTML**, **PDF** (`pdf-templates`), and **`/roast/[id]`** extended diagnostics stay aligned (`roast-expanded-diagnostics-section.tsx`).
 
 ---
 
@@ -282,7 +308,8 @@ Each layer has a **composite** score triple (`current`, `proposed`, `impact` tex
 | Worker 3 explicit sub-criteria | 15+ |
 | Legal HTML booleans + merge behavior | 3 (+ merge rules) |
 | SEO analyzer fields + issue types | 14 + 6 issue types |
-| PageSpeed metrics (when API key present) | up to 5 |
+| PageSpeed / PSI (dual strategy + rollup) | mobile + desktop aggregates + opportunities/diagnostics lists; legacy `performance` rollup (incl. optional `inp`) |
+| Expanded audits (`src/lib/audits`) | `on_page_seo`, `meta_preview`, `tech_stack`, `behaviour_tools` (many sub-signals each) |
 | Quick scan outputs & major inference steps | 10+ |
 | Page-type rules | 4 + default |
 | Traffic estimate outputs | 3 |
@@ -298,9 +325,13 @@ Each layer has a **composite** score triple (`current`, `proposed`, `impact` tex
 ## 18. Code references (main entry points)
 
 - Orchestration & workers: `src/app/api/roast/route.ts`
-- SEO: `src/lib/seo-analyzer.ts`
+- Capture (incl. optional `documentHeaders` / `xRobotsTag`): `src/lib/capture.ts`
+- Chromium path resolution (Puppeteer): `src/lib/chromium-executable.ts`, `src/lib/should-use-bundled-chromium.ts`
+- SEO (legacy scorecard): `src/lib/seo-analyzer.ts`
 - Legal href scan: `src/lib/legal-html-signals.ts`
-- PageSpeed: `src/lib/pagespeed.ts`, `src/lib/pagespeed-gemini-summary.ts`
+- PSI aggregate + rollup: `src/lib/audits/performance-pagespeed.ts`, `src/lib/pagespeed.ts`, `src/lib/pagespeed-gemini-summary.ts`
+- Expanded audits (barrel): `src/lib/audits/index.ts` — modules under `src/lib/audits/*`
+- Report HTML parity: `src/lib/report-seo-appendix.ts`, `src/lib/report-extended-audit-appendix.ts`
 - Quick scan: `src/lib/quick-scan.ts`
 - Insight layers: `src/lib/insight-layers.ts`, `src/lib/insight-layers-report.ts`
 - Site score semantics: `src/lib/site-score.ts`
@@ -435,19 +466,19 @@ Flat index: **###** = source bucket, **####** = sub-bucket, bullets = short name
 
 ---
 
-### 19.6 PageSpeed Insights (`getPageSpeed` → `performance`)
+### 19.6 PageSpeed Insights (PSI v5 → `performance_audit` + `performance`)
 
+- **`performance_audit`** — `fetchPerformanceAuditResult` (`src/lib/audits/performance-pagespeed.ts`): parallel **mobile + desktop** when `PAGESPEED_API_KEY` is set; per-strategy Lighthouse **performance** score; **LCP**, **CLS**, **TBT**, **INP** (when Lighthouse exposes interaction-to-next-paint); capped **opportunities** and **diagnostics** lists.
+- **`performance`** — `pageSpeedSummaryFromPerformanceAuditMobile` / `getPageSpeed` (`src/lib/pagespeed.ts`): **mobile-only** rollup for UI + Gemini; same metric keys as below.
 - `performanceScore` (Lighthouse performance category 0–100)
-- `lcp` (Largest Contentful Paint display value)
-- `cls` (Cumulative Layout Shift)
-- `tbt` (Total Blocking Time)
-- `strategy` (`mobile` | `desktop`)
-- `PAGESPEED_API_KEY`, `PAGESPEED_STRATEGY` (env)
+- `lcp`, `cls`, `tbt`, `inp` (lab strings when present)
+- `strategy` on rollup: **`mobile`** (derived from mobile slice)
+- Env: **`PAGESPEED_API_KEY`** (required for PSI); **`PAGESPEED_STRATEGY`** (legacy single-strategy helper paths; roast aggregate prefers dual strategy when key exists)
 
 #### Optional Gemini layer (`performanceGemini`)
 
 - `summary`
-- `quickFixes[0]`, `quickFixes[1]` (exactly two when valid)
+- `quickFixes[0]`, `quickFixes[1]` (exactly two when valid; prompt receives `performance` JSON, including **`inp`** when populated)
 
 ---
 
@@ -601,7 +632,7 @@ Flat index: **###** = source bucket, **####** = sub-bucket, bullets = short name
 - `detailedAudit` (grouped by radar key)
 - `summary_bullets`
 - `heroScreenshot`
-- `seo`, `page_type`, `performance`, `performanceGemini`
+- `seo`, `page_type`, `performance`, `performance_audit`, `performanceGemini`, `on_page_seo`, `meta_preview`, `tech_stack`, `behaviour_tools`
 - `revenueLeakEstimate`, `pageHeight`, `price_guess`, `industry_guess`, `price_from_page`, `price_billing_note`
 - `_meta` (tokens, models, costs)
 
@@ -616,9 +647,21 @@ Flat index: **###** = source bucket, **####** = sub-bucket, bullets = short name
 ### 19.18 Environment & defaults (referenced by audit math)
 
 - `GOOGLE_GENAI_API_KEY`
+- `PAGESPEED_API_KEY`, `PAGESPEED_STRATEGY`
+- `TECHSTACK_API_URL`, `TECHSTACK_API_KEY` (optional external tech detection)
+- `CHROMIUM_EXECUTABLE_PATH` / `PUPPETEER_EXECUTABLE_PATH` / `CHROMIUM_BIN_DIR` (local Puppeteer executable; see `src/lib/chromium-executable.ts`)
 - `DEFAULT_ILLUSTRATIVE_DEAL_VALUE_USD` (29)
 - `DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS` (5000)
 
 ---
 
-*Last aligned to repository implementation: audit parameters as wired in `src/app/api/roast/route.ts` and associated `src/lib` modules.*
+### 19.19 Expanded programmatic audits (`src/lib/audits` → API JSON)
+
+- `on_page_seo` — Cheerio + optional `documentHeaders.xRobotsTag` from capture
+- `meta_preview` — SERP-like + social preview strings
+- `tech_stack` — pattern scan + optional `TECHSTACK_API_URL` / `TECHSTACK_API_KEY` merge
+- `behaviour_tools` — derived UX copy from detected stack (e.g. Clarity vs other heatmaps)
+
+---
+
+*Last aligned to repository implementation: **2026-05-08** — `src/app/api/roast/route.ts` and associated `src/lib` modules (`src/lib/audits/*`, `capture.ts`, `chromium-executable.ts`).*

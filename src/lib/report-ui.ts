@@ -24,6 +24,20 @@ export function formatImpactLine(lift: string | undefined): string {
   return `Impact: ${cleaned}`;
 }
 
+/** Effort tier line plus HI/MI/LI when present, else qualitative impact from lift */
+export function formatQuickWinSubheadLine(
+  effortRaw: string | undefined,
+  impactCode: string | undefined,
+  liftFallback: string | undefined
+): string {
+  const eff = formatEffortLine(effortRaw);
+  const code = typeof impactCode === "string" ? impactCode.trim().toUpperCase() : "";
+  if (code === "HI" || code === "MI" || code === "LI") {
+    return `${eff} · Impact: ${code}`;
+  }
+  return `${eff} · ${formatImpactLine(liftFallback)}`;
+}
+
 /** Same as formatEffortLine / formatImpactLine without the leading "Effort:" / "Impact:" (for UI that already labels the section). */
 export function effortDetailBody(effortRaw: string | undefined): string {
   return formatEffortLine(effortRaw).replace(/^Effort:\s*/i, "").trim();

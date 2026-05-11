@@ -45,6 +45,11 @@ import { SocialContentPackSection } from "@/components/admin/social-content-pack
 import { AuthRequiredDialog } from "@/components/auth-required-dialog";
 import { FullReportUpgradePanel } from "@/components/roast/full-report-upgrade-panel";
 import { ReportQuickFixesBlock } from "@/components/roast/report-quick-fixes-block";
+import { HowToReadThisReport } from "@/components/roast/how-to-read-this-report";
+import { ReportContextCard } from "@/components/roast/report-context-card";
+import { ReportAnalyticsReadinessCard } from "@/components/roast/report-analytics-readiness-card";
+import { ExperimentBacklogSection } from "@/components/roast/experiment-backlog-section";
+import { ImplementationChecklistSection } from "@/components/roast/implementation-checklist-section";
 import { UnlockFullReportButton } from "@/components/roast/unlock-full-report-button";
 import { ShareYourScore } from "@/components/roast/share-your-score";
 import {
@@ -59,6 +64,8 @@ import {
   REPORT_CATEGORY_SUB,
   REPORT_ELEMENT_SUB,
 } from "@/lib/report-html";
+import { generateAuditReportHTMLV2 } from "@/lib/report-html-v2";
+import { RoastReportV2 } from "@/components/roast/roast-report-v2";
 import { upsertRoastHistory } from "@/lib/roast-history";
 import { SectionHeader } from "@/components/ui/section-header";
 import { cn } from "@/lib/utils";
@@ -91,7 +98,7 @@ import {
   fallbackInsightLayers,
 } from "@/lib/insight-layers";
 import { partitionLegalComplianceAuditLast } from "@/lib/legal-compliance-audit";
-import { ensureQuickWinsUpToFour } from "@/lib/quick-wins-fill";
+import { ensureQuickWinsUpTo } from "@/lib/quick-wins-fill";
 import type {
   FirstImpressionInsight,
   MessagingClarityInsight,
@@ -106,6 +113,10 @@ import {
   hasRoastSeoHealthContent,
   hasRoastPageSpeedContent,
 } from "@/components/roast/roast-seo-performance-section";
+import {
+  RoastExpandedDiagnosticsSection,
+  hasRoastExpandedDiagnosticsContent,
+} from "@/components/roast/roast-expanded-diagnostics-section";
 import { ScrollOfDeathCard } from "@/components/roast/scroll-of-death-card";
 import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
@@ -126,6 +137,8 @@ import type {
   ScrollEffectiveness,
   TrafficEstimate,
 } from "@/types/roast-extras";
+import type { ExperimentBacklogItem, ImplementationChecklistItem } from "@/types/report-artifacts";
+import type { ReportArtifactsInput } from "@/lib/report-artifacts-html";
 
 /**
  * Exact 1:1 migration from main.py render_main_audit_dashboard function (lines 4647-5283)
@@ -164,6 +177,7 @@ interface RoastData {
     example?: string;
     effort?: string;
     lift?: string;
+    impactCode?: string;
   }>;
   quick_wins?: Array<{
     title?: string;
@@ -173,6 +187,7 @@ interface RoastData {
     example?: string;
     effort?: string;
     lift?: string;
+    impactCode?: string;
   }>;
   detailedAudit?: Record<string, DetailedAuditItem[]>;
   summary_bullets?: string[];
@@ -200,9 +215,16 @@ interface RoastData {
   page_type?: string;
   performance?: PageSpeedSummary | null;
   performanceGemini?: PerformanceGeminiSummary | null;
+  performance_audit?: import("@/lib/audits/performance-pagespeed").PerformanceAuditResult | null;
+  on_page_seo?: import("@/lib/audits/on-page-seo").OnPageSeoAuditResult | null;
+  meta_preview?: import("@/lib/audits/meta-preview-audit").MetaPreviewAuditResult | null;
+  tech_stack?: import("@/lib/audits/tech-stack-audit").TechStackAuditResult | null;
+  behaviour_tools?: import("@/lib/audits/behaviour-tools").BehaviourToolsAdvice | null;
   trafficEstimate?: TrafficEstimate;
   scrollEffectiveness?: ScrollEffectiveness;
   device?: "desktop" | "mobile";
+  experimentBacklog?: ExperimentBacklogItem[];
+  implementationChecklist?: ImplementationChecklistItem[];
 }
 
 function categoryTabIcon(name: string): LucideIcon {
@@ -448,6 +470,8 @@ export default function RoastPage() {
           isPaid: hasFullReportAccess,
           url: typeof window !== "undefined" ? window.location.origin : "https://siteroast.ai",
           calculator: { traffic, price, industry },
+          reportVersion: "v1",
+          reportId: id,
         }),
       });
 
@@ -470,6 +494,51 @@ export default function RoastPage() {
     } catch (err) {
       console.error("Failed to download PDF:", err);
       alert("Failed to download PDF. Please try again.");
+    }
+  };
+
+  const handleDownloadPDFV2 = async () => {
+    try {
+      const id = params.id as string;
+      if (!roastData) {
+        alert("Report data not available. Please refresh the page.");
+        return;
+      }
+
+      const response = await fetch("/api/generate-pdf", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          roastData,
+          isPaid: hasFullReportAccess,
+          url: typeof window !== "undefined" ? window.location.origin : "https://siteroast.ai",
+          calculator: { traffic, price, industry },
+          reportVersion: "v2",
+          reportId: id,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || data.details || "Failed to generate PDF. Please try again.");
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const base = reportFileBase || `roast-${id}`;
+      a.download = `${base}_v2.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error("Failed to download V2 PDF:", err);
+      alert("Failed to download V2 PDF. Please try again.");
     }
   };
 
@@ -523,6 +592,56 @@ export default function RoastPage() {
     }
   };
 
+  const buildHtmlExportV2 = () => {
+    const id = params.id as string;
+    if (!roastData) return null;
+    return generateAuditReportHTMLV2(roastData as AuditReportPayload, {
+      reportId: id,
+      isPaid: hasFullReportAccess,
+      calculator: { traffic, price, industry },
+    });
+  };
+
+  const handleDownloadHTMLV2 = () => {
+    try {
+      const id = params.id as string;
+      const htmlContent = buildHtmlExportV2();
+      if (!htmlContent) {
+        alert("Report data not available. Please refresh the page.");
+        return;
+      }
+      const base = reportFileBase || `roast-${id}`;
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = `${base}_v2.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(href);
+    } catch (err) {
+      console.error("Failed to download V2 HTML:", err);
+      alert("Failed to download V2 HTML report. Please try again.");
+    }
+  };
+
+  const handleViewHTMLV2 = () => {
+    try {
+      const htmlContent = buildHtmlExportV2();
+      if (!htmlContent) {
+        alert("Report data not available. Please refresh the page.");
+        return;
+      }
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.error("Failed to open V2 HTML report:", err);
+      alert("Failed to open V2 HTML report. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <SidebarProvider>
@@ -560,7 +679,7 @@ export default function RoastPage() {
   const overallScore = hasRadarGrid
     ? meanRadarSiteScore(radarScores as Record<string, unknown>)
     : storedOverall;
-  const quickWins = ensureQuickWinsUpToFour(
+  const quickWins = ensureQuickWinsUpTo(
     roastData.quickWins || roastData.quick_wins,
     roastData.audit_items
   );
@@ -661,7 +780,7 @@ export default function RoastPage() {
     >
       <AppSidebar />
       <SidebarInset className="flex-1 overflow-auto">
-        <div className="ml-[14.4rem] flex min-h-screen w-[calc(100%-14.4rem)] max-w-[min(100%,88rem)] flex-col items-stretch justify-start gap-10 bg-background p-6 pt-8 md:gap-12 md:p-10 md:pt-10">
+        <div className="flex min-h-screen w-full min-w-0 max-w-[min(100%,88rem)] flex-col items-stretch justify-start gap-10 bg-background p-6 pt-8 md:ml-[14.4rem] md:w-[calc(100%-14.4rem)] md:gap-12 md:p-10 md:pt-10">
           <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
@@ -696,8 +815,41 @@ export default function RoastPage() {
                 <Globe className="size-4 shrink-0 stroke-[1.5]" />
                 View in Browser
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => requireUserForExport(() => handleDownloadPDFV2())}
+              >
+                <FileDown className="size-4 shrink-0 stroke-[1.5]" />
+                Download V2 PDF
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => requireUserForExport(() => handleDownloadHTMLV2())}
+              >
+                <Download className="size-4 shrink-0 stroke-[1.5]" />
+                Download V2 HTML
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => requireUserForExport(() => handleViewHTMLV2())}
+              >
+                <Globe className="size-4 shrink-0 stroke-[1.5]" />
+                View V2 HTML
+              </Button>
             </div>
           </div>
+
+          <Tabs defaultValue="v1">
+            <div className="flex w-full flex-col gap-8">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="v1">Report V1</TabsTrigger>
+              <TabsTrigger value="v2">Report V2 (beta)</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="v1" className="mt-0 flex flex-col gap-10 outline-none">
 
           <div className="grid w-full gap-6 rounded-lg border border-border bg-surface-1 p-6 md:grid-cols-12 md:items-stretch md:gap-8 md:p-8">
             <div className="flex w-full flex-col items-center justify-center md:col-span-3">
@@ -790,9 +942,36 @@ export default function RoastPage() {
             ) : null}
           </div>
 
+          <div className="mt-8 flex w-full flex-col gap-4">
+            <HowToReadThisReport />
+            <ReportContextCard
+              page_type={roastData.page_type}
+              trafficEstimate={roastData.trafficEstimate}
+              performance={roastData.performance}
+              performance_audit={roastData.performance_audit ?? null}
+              price_guess={roastData.price_guess}
+              price_from_page={roastData.price_from_page}
+              price_billing_note={roastData.price_billing_note}
+            />
+            <ReportAnalyticsReadinessCard
+              tech_stack={roastData.tech_stack}
+              behaviour_tools={roastData.behaviour_tools}
+            />
+          </div>
+
+          <SectionHeader
+            title="Experiments & delivery"
+            description="Hypotheses tied to Quick Fixes plus an ownership-focused rollout checklist."
+            size="compact"
+          />
+          <div className="mb-10 flex w-full flex-col gap-4">
+            <ExperimentBacklogSection roastLike={roastData as ReportArtifactsInput} />
+            <ImplementationChecklistSection roastLike={roastData as ReportArtifactsInput} />
+          </div>
+
           <SectionHeader
             title="Insights & actions"
-            description="SEO snapshot with fixes, plus AI-generated signals from your audit."
+            description="For marketers and builders: structured SEO signals, economics, and technical diagnostics."
             size="compact"
           />
 
@@ -896,7 +1075,7 @@ export default function RoastPage() {
 
           <SectionHeader
             title="Performance & economics"
-            description="Lab speed (when available), revenue at risk, competitive context, scroll behavior, and viewport attention."
+            description="For revenue and product owners: speed snapshot, revenue scenarios, market context, and scroll behavior."
             size="compact"
           />
 
@@ -913,6 +1092,23 @@ export default function RoastPage() {
                 performance: roastData.performance,
                 performanceGemini: roastData.performanceGemini,
               }}
+            />
+          ) : null}
+
+          {roastData &&
+          hasRoastExpandedDiagnosticsContent({
+            performance_audit: roastData.performance_audit,
+            on_page_seo: roastData.on_page_seo,
+            meta_preview: roastData.meta_preview,
+            tech_stack: roastData.tech_stack,
+            behaviour_tools: roastData.behaviour_tools,
+          }) ? (
+            <RoastExpandedDiagnosticsSection
+              performance_audit={roastData.performance_audit}
+              on_page_seo={roastData.on_page_seo}
+              meta_preview={roastData.meta_preview}
+              tech_stack={roastData.tech_stack}
+              behaviour_tools={roastData.behaviour_tools}
             />
           ) : null}
 
@@ -1337,6 +1533,22 @@ export default function RoastPage() {
               </Card>
             </>
           ) : null}
+            </TabsContent>
+            <TabsContent value="v2" className="mt-0 flex flex-col gap-10 outline-none">
+              <RoastReportV2
+                roastData={roastData as AuditReportPayload}
+                reportId={params.id as string}
+                hasFullReportAccess={hasFullReportAccess}
+                unlockFullReport={unlockFullReport}
+                traffic={traffic}
+                price={price}
+                industry={industry}
+                setTraffic={setTraffic}
+                setPrice={setPrice}
+              />
+            </TabsContent>
+            </div>
+          </Tabs>
         </div>
       </SidebarInset>
       <AuthRequiredDialog

@@ -29,7 +29,7 @@ export default function SettingsPage() {
     >
       <AppSidebar />
       <SidebarInset className="flex-1 overflow-auto">
-        <div className="ml-[14.4rem] flex min-h-screen flex-col gap-8 bg-background p-6 pt-8 md:p-10 md:pt-10">
+        <div className="flex min-h-screen w-full min-w-0 flex-col gap-8 bg-background p-6 pt-8 md:ml-[14.4rem] md:p-10 md:pt-10">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Settings</h1>
             <ThemeIconToggle className="sm:pt-1" />

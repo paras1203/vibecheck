@@ -1,6 +1,6 @@
 # Vibecheck: URL submission → report — workflow and LLM prompts
 
-This document describes the **server-side processes** from URL submission through the JSON payload used for the on-page teaser and the full `/roast/[id]` report UI. It reflects the implementation in `src/app/api/roast/route.ts` and related libraries as of the repo state when this file was authored.
+This document describes the **server-side processes** from URL submission through the JSON payload used for the on-page teaser and the full `/roast/[id]` report UI. It reflects `src/app/api/roast/route.ts` and related libraries as of **2026-05-08** (expanded PSI/on-page audits, tech stack hooks, Puppeteer chromium resolution).
 
 ---
 
@@ -9,15 +9,13 @@ This document describes the **server-side processes** from URL submission throug
 High-level chain (single `POST /api/roast`):
 
 1. **Request validation** — Require a string `url`; optional `device` is `desktop` or `mobile` (default `desktop`).
-2. **Capture** — `captureScreenshotFromUrl(url, device)` loads the page (Puppeteer), returns base64 screenshots, full HTML, visible text (`pageText`), and page height.
-3. **Quick scan** — `quickScan(url)` opens the URL (separate Puppeteer pass), reads body text/title/meta, optionally tries `/pricing` or `/plans`, then **deterministically** infers `page_height`, monthly order-value guess (`price_guess`), `industry_guess` (keyword heuristics), and pricing notes. **No LLM.**
-4. **Screenshot packaging** — Screenshots become `ImageInput` objects (PNG/JPEG from magic bytes).
-5. **Auxiliary analysis (non-LLM unless noted)**  
-   - `analyzeSEO(htmlContent, url)` — rule-based SEO signals.  
-   - `detectPageType(url, htmlContent, pageText)` — heuristic page type.  
-   - `getPageSpeed(url)` — Google PageSpeed / Lighthouse-style lab metrics (HTTP API, not Gemini).
+2. **Concurrent capture + quick scan** — `quickScan(url)` is **started immediately** on the requested URL while `captureScreenshotFromUrl(url, device)` loads the page (Puppeteer with `executablePath` from `resolvePuppeteerLaunchExecutablePath`; see `src/lib/chromium-executable.ts`). Capture returns base64 screenshots, full HTML, visible text (`pageText`), **`pageHeight`**, and optional **`documentHeaders`** (includes **`xRobotsTag`** from the navigation response when available). The route **awaits** capture and the quick-scan promise before Gemini work begins. Quick scan deterministically infers **`page_height`**, **`price_guess`**, **`industry_guess`**, pricing notes, etc. — **No LLM.**
+3. **Screenshot packaging** — First screenshot becomes `ImageInput` (PNG/WebP/JPEG from magic bytes).
+4. **`analyzeSEO`** + **`detectPageType`** — Run on full HTML (**no LLM**). Failures are swallowed independently.
+5. **Extended programmatic bundle (single `try`; no LLM except optional tech POST)** —  
+   `fetchPerformanceAuditResult(url)` (PSI v5 mobile + desktop when `PAGESPEED_API_KEY` is set); roll **`performance`** = `pageSpeedSummaryFromPerformanceAuditMobile` (legacy UI / Gemini rollup, includes **`inp`** when Lighthouse provides it); attach full **`performance_audit`**. **`runPatternTechStackAudit`** merged with **`fetchOptionalTechStackApi`** (`TECHSTACK_API_URL` / `TECHSTACK_API_KEY` optional); **`runOnPageSeoAudit(htmlContent, url, documentHeaders)`**; **`runMetaPreviewAudit`**; **`deriveBehaviourToolsAdvice`**. Stored on the response as **`on_page_seo`**, **`meta_preview`**, **`tech_stack`**, **`behaviour_tools`**.
 6. **`compileRoast` — core audit** — Runs three Gemini “worker” passes **sequentially** (visuals → copy → tech), merges outputs, applies **deterministic** legal-link reconciliation, computes radar scores and overall score, then runs two more Gemini calls (narrative + insight JSON). Returns the main audit JSON structure.
-7. **Post-`compileRoast` enrichment** — Attach SEO, page type, raw `performance` (PageSpeed). Rebuild `revenueLeakEstimate` using quick-scan price + traffic estimate. **LLM:** optional illustrative monthly sessions (`estimateMonthlySessionsForUrl`). **LLM:** optional PageSpeed narrative (`summarizePageSpeedWithGemini`). **Code:** `buildScrollEffectiveness`, `syncOverallScoreWithRadarPayload`, attach `heroScreenshot`, optional audit logging.
+7. **Post-`compileRoast` enrichment** — Merge SEO, **`page_type`**, **`performance`**, **`performance_audit`**, **`on_page_seo`**, **`meta_preview`**, **`tech_stack`**, **`behaviour_tools`** into the outward payload. Rebuild **`revenueLeakEstimate`** using quick-scan price + traffic estimate. **LLM:** optional illustrative monthly sessions (`estimateMonthlySessionsForUrl`). **LLM:** optional PageSpeed narrative (`summarizePageSpeedWithGemini` on **`performance`**). **Code:** `buildScrollEffectiveness`, `syncOverallScoreWithRadarPayload`, attach `heroScreenshot`, optional audit logging. HTML/PDF export appendices consume the same programmatic blocks via **`buildSeoPerformanceAppendixHtml`** (`report-seo-appendix.ts` + `report-extended-audit-appendix.ts`).
 
 **Client note (out of scope for “processes” detail):** The browser stores the API JSON and navigates to `/roast/[id]` for the “full report” view. There is **no second backend job** that re-runs the three workers for “full” vs “preview”; the same response powers both teaser and report UI.
 
@@ -25,7 +23,7 @@ High-level chain (single `POST /api/roast`):
 
 ## Part 2 — LLM steps, prompts, and audit logic
 
-Models are chosen via `initializeGeminiClient()` (`src/lib/gemini-client.ts` + `src/lib/llm-models.ts`): **worker** models for structured workers, traffic, and PageSpeed summary; **roast** models for narrative and insight layers. Calls use `generateWithTwoModelFallback` (workers) or `generateRoastWithFallback` (roast / shared helper) with primary → fallback on retryable errors.
+Models are chosen via `initializeGeminiClient()` (`src/lib/gemini-client.ts` + `src/lib/llm-models.ts`): **worker** models for structured workers, traffic, and PageSpeed summary; **roast** models for narrative and insight layers. Calls use `generateWithTwoModelFallback` (workers) or `generateRoastWithFallback` (roast / shared helper) with primary → fallback on retryable errors. **Note:** Verbatim prompt blocks below omit small string fragments prepended in code (e.g. `AUDIT_WORKER_VISUAL_FOCUS`, `AUDIT_WORKER_GLOBAL_CRO_RULES`); the authoritative text is always `src/app/api/roast/route.ts`.
 
 ### Step A — Worker 1: Visuals (`analyzeVisuals`)
 
@@ -569,7 +567,7 @@ You are a web performance expert. Given lab metrics from Google PageSpeed Insigh
 
 Rules:
 - quickFixes must be exactly two strings, each actionable in one line.
-- Do not invent metrics; only interpret those provided.
+- Do not invent metrics; only interpret those provided (rollup may include **`inp`** when PSI/Lighthouse exposes it).
 - If a metric is missing, do not claim you measured it.
 
 Metrics (JSON): ${JSON.stringify(payload)}
@@ -581,8 +579,8 @@ Metrics (JSON): ${JSON.stringify(payload)}
 
 | Order | Name | LLM? | Purpose |
 |------:|------|------|---------|
-| 1 | Capture + quick scan | No | Assets + pricing/industry heuristics |
-| 2 | SEO / page type / PageSpeed API | No | Metadata and lab metrics |
+| 1 | Capture ∥ quick scan | No | Screenshots/HTML/text + heuristic pricing/industry (**two** Puppeteer passes; chromium path resolver) |
+| 2 | SEO + page type + extended PSI / Cheerio / tech | No\* | Legacy `seo`, `page_type`, `performance_audit` + `performance` rollup, `on_page_seo`, `meta_preview`, `tech_stack`, `behaviour_tools` |
 | 3 | Visuals worker | Yes | Structured UX/visual audit items |
 | 4 | Copy worker | Yes | Structured copy/conversion items |
 | 5 | Tech worker | Yes | Structured tech/SEO/legal/form items |
@@ -591,16 +589,22 @@ Metrics (JSON): ${JSON.stringify(payload)}
 | 8 | Narrative roast | Yes | Four-part executive/diagnostic copy |
 | 9 | Insight layers | Yes | firstImpression / trustGap / messaging JSON |
 | 10 | Traffic estimate | Yes | Illustrative monthly sessions |
-| 11 | PageSpeed Gemini summary | Yes | Human-readable performance blurb + 2 fixes |
+| 11 | PageSpeed Gemini summary | Yes | Human-readable performance blurb + 2 fixes (from `performance`) |
 | 12 | Scroll / hero / score sync | No | Report extras |
+
+\*Optional HTTP POST to **`TECHSTACK_API_URL`** merges third-party signals; no Gemini.
 
 ---
 
 ## Source of truth in code
 
-- Orchestration: `src/app/api/roast/route.ts` (`POST`, `compileRoast`, `analyzeVisuals`, `analyzeCopy`, `analyzeTech`).  
-- Insight prompt: `src/lib/insight-layers.ts` (`INSIGHT_LAYERS_SYSTEM_PROMPT`).  
-- Traffic: `src/lib/traffic-estimate.ts`.  
-- Performance copy: `src/lib/pagespeed-gemini-summary.ts`.  
-- Legal signals: `src/lib/legal-html-signals.ts`.  
+- Orchestration: `src/app/api/roast/route.ts` (`POST`, capture/scan parallelism, **`fetchPerformanceAuditResult`** + rollup, **`src/lib/audits`**, `compileRoast`, worker prompts).
+- Expanded audits & types: `src/lib/audits/*`, `src/lib/pagespeed.ts`.
+- Capture headers: `src/lib/capture.ts`.
+- Puppeteer binary: `src/lib/chromium-executable.ts`.
+- Insight prompt: `src/lib/insight-layers.ts` (`INSIGHT_LAYERS_SYSTEM_PROMPT`).
+- Traffic: `src/lib/traffic-estimate.ts`.
+- Performance copy: `src/lib/pagespeed-gemini-summary.ts`.
+- Legal signals: `src/lib/legal-html-signals.ts`.
+- Report HTML appendix wiring: `src/lib/report-seo-appendix.ts`, `src/lib/report-extended-audit-appendix.ts`.
 - Model routing: `src/lib/gemini-client.ts`, `src/lib/llm-models.ts`.

@@ -2,8 +2,13 @@ import type { SeoAnalysisResult } from "@/lib/seo-analyzer";
 import type { PageSpeedSummary } from "@/lib/pagespeed";
 import type { PerformanceGeminiSummary } from "@/types/roast-extras";
 import { pdfAxisScoreHex } from "@/lib/report-theme";
+import {
+  buildExtendedAuditAppendixHtml,
+  hasExtendedAuditAppendixContent,
+  type ExtendedAuditAppendixInput,
+} from "@/lib/report-extended-audit-appendix";
 
-export type SeoAppendixInput = {
+export type SeoAppendixInput = ExtendedAuditAppendixInput & {
   seo?: SeoAnalysisResult | null;
   page_type?: string;
   performance?: PageSpeedSummary | null;
@@ -75,11 +80,14 @@ export function buildSeoPerformanceAppendixHtml(
       (typeof perf.performanceScore === "number" ||
         (perf.lcp != null && perf.lcp !== "") ||
         (perf.cls != null && perf.cls !== "") ||
-        (perf.tbt != null && perf.tbt !== ""))
+        (perf.tbt != null && perf.tbt !== "") ||
+        (perf.inp != null && perf.inp !== ""))
   );
   const gem = data.performanceGemini;
 
-  if (!hasPageType && !hasSeo && !hasPerf) {
+  const hasExtended = hasExtendedAuditAppendixContent(data);
+
+  if (!hasPageType && !hasSeo && !hasPerf && !hasExtended) {
     return "";
   }
 
@@ -145,6 +153,10 @@ export function buildSeoPerformanceAppendixHtml(
       perf.cls != null && perf.cls !== ""
         ? `<p class="muted report-nojustify">CLS: ${esc(perf.cls)}</p>`
         : "";
+    const inp =
+      perf.inp != null && perf.inp !== ""
+        ? `<p class="muted report-nojustify">INP: ${esc(perf.inp)}</p>`
+        : "";
     const tbt =
       perf.tbt != null && perf.tbt !== ""
         ? `<p class="muted report-nojustify">TBT: ${esc(perf.tbt)}</p>`
@@ -156,9 +168,11 @@ export function buildSeoPerformanceAppendixHtml(
             .join("")}</ol>`
         : "";
     parts.push(
-      `<div class="section report-major"><h2>Lighthouse performance (PageSpeed)</h2>${perfScore}${lcp}${cls}${tbt}${gemBlock}</div>`
+      `<div class="section report-major"><h2>Lighthouse performance (PageSpeed)</h2>${perfScore}${lcp}${inp}${cls}${tbt}${gemBlock}<p class="muted report-nojustify">Free lab data via Google PageSpeed Insights API.</p></div>`
     );
   }
 
-  return parts.join("\n");
+  const base = parts.join("\n");
+  const extended = buildExtendedAuditAppendixHtml(data, esc);
+  return extended ? `${base}\n${extended}` : base;
 }

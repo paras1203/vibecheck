@@ -31,7 +31,8 @@ export function hasRoastPageSpeedContent(data: SeoAppendixInput): boolean {
       (typeof perf.performanceScore === "number" ||
         (perf.lcp != null && perf.lcp !== "") ||
         (perf.cls != null && perf.cls !== "") ||
-        (perf.tbt != null && perf.tbt !== ""))
+        (perf.tbt != null && perf.tbt !== "") ||
+        (perf.inp != null && perf.inp !== ""))
   );
 }
 
@@ -193,6 +194,11 @@ export function RoastPageSpeedBlock({ data }: Props) {
         {performance.cls ? (
           <p>
             <span className="font-medium text-foreground">CLS:</span> {performance.cls}
+          </p>
+        ) : null}
+        {performance.inp ? (
+          <p>
+            <span className="font-medium text-foreground">INP:</span> {performance.inp}
           </p>
         ) : null}
         {performance.tbt ? (
