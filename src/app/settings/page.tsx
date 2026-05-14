@@ -1,8 +1,6 @@
 "use client";
 
 import React from "react";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,6 +10,7 @@ import { AccountSettings } from "@/components/settings/account-settings";
 import { ThemeIconToggle } from "@/components/settings/theme-icon-toggle";
 import { DeleteAccountDialog } from "@/components/settings/delete-account-dialog";
 import { Separator } from "@/components/ui/separator";
+import { AuthenticatedShell } from "@/components/authenticated-shell";
 
 export default function SettingsPage() {
   const { user, logout } = useAuth();
@@ -20,21 +19,7 @@ export default function SettingsPage() {
   if (!ok) return null;
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "14.4rem",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="flex-1 overflow-auto">
-        <div className="flex min-h-screen w-full min-w-0 flex-col gap-8 bg-background p-6 pt-8 md:ml-[14.4rem] md:p-10 md:pt-10">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Settings</h1>
-            <ThemeIconToggle className="sm:pt-1" />
-          </div>
-
+    <AuthenticatedShell title="Settings" headerRight={<ThemeIconToggle />}>
           <Card>
             <CardHeader>
               <CardTitle>Manage account</CardTitle>
@@ -46,8 +31,13 @@ export default function SettingsPage() {
 
           <Separator />
 
-          <div className="flex flex-col gap-4 pb-8">
-            <Button variant="outline" className="w-full sm:w-auto" onClick={() => logout()}>
+          <div className="flex flex-col gap-3 pb-8 sm:flex-row sm:flex-wrap sm:items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 w-full min-w-0 px-4 text-sm font-medium sm:w-auto"
+              onClick={() => logout()}
+            >
               Log out
             </Button>
             <div className="flex flex-col gap-2 text-sm sm:flex-row sm:gap-6">
@@ -60,8 +50,6 @@ export default function SettingsPage() {
             </div>
             <DeleteAccountDialog />
           </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    </AuthenticatedShell>
   );
 }

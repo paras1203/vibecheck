@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense, startTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { HeroHighlight } from "@/components/ui/hero-highlight";
 import { Navbar } from "@/components/navbar";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,8 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, X } from "lucide-react";
 import Link from "next/link";
-import { BRAND_NAME } from "@/lib/brand";
-
+import { resolvePostLoginPath } from "@/lib/post-login-redirect";
 function safeInternalNext(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
   return raw;
@@ -24,7 +22,6 @@ function LoginInner() {
     handleEmailSignIn,
     handleEmailSignUp,
     sendPasswordResetToEmail,
-    sendEmailSignInLink,
     completeEmailLinkSignInIfPresent,
     loading,
     isSyncing,
@@ -33,6 +30,7 @@ function LoginInner() {
   } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const hasExplicitNextQuery = searchParams.has("next");
   const nextPath = safeInternalNext(searchParams.get("next"));
   const modeParam = searchParams.get("mode");
   const [mode, setMode] = useState<"signin" | "signup">(
@@ -43,14 +41,16 @@ function LoginInner() {
   const [error, setError] = useState<string | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
-  const [linkBusy, setLinkBusy] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
 
   useEffect(() => {
-    if (user && !loading && authResolved && !isSyncing) {
-      router.replace(nextPath);
-    }
-  }, [user, loading, authResolved, isSyncing, router, nextPath]);
+    if (!user || loading || !authResolved || isSyncing) return;
+    const dest = resolvePostLoginPath({
+      hasExplicitNextQuery,
+      nextPath,
+      onboardingCompleted: user.firestoreSynced ? user.onboardingCompleted : false,
+    });
+    router.replace(dest);
+  }, [user, loading, authResolved, isSyncing, router, nextPath, hasExplicitNextQuery]);
 
   useEffect(() => {
     if (modeParam === "signup" || modeParam === "signin") {
@@ -107,28 +107,6 @@ function LoginInner() {
     }
   };
 
-  const onEmailLink = async () => {
-    startTransition(() => {
-      setError(null);
-      setLinkSent(false);
-    });
-    if (!email.trim()) {
-      startTransition(() => setError("Enter your email to receive a sign-in link."));
-      return;
-    }
-    setLinkBusy(true);
-    try {
-      await sendEmailSignInLink(email, nextPath);
-      startTransition(() => setLinkSent(true));
-    } catch (e) {
-      startTransition(() =>
-        setError(e instanceof Error ? e.message : "Could not send sign-in link")
-      );
-    } finally {
-      setLinkBusy(false);
-    }
-  };
-
   const onForgotPassword = async () => {
     startTransition(() => {
       setError(null);
@@ -155,11 +133,11 @@ function LoginInner() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <HeroHighlight containerClassName="!h-auto min-h-screen bg-background">
-        <Navbar />
-        <div className="flex min-h-screen flex-col items-center justify-center gap-8 px-4 py-20 md:px-8">
-          <div className="relative w-full max-w-md space-y-6 rounded-xl border border-border bg-card/80 p-8 pt-12 shadow-sm backdrop-blur">
+    <div className="min-h-screen w-full min-w-0 bg-background text-foreground">
+      <Navbar landingVisualId="a1" showLandingVariationSwitcher={false} navMode="concept" tone="default" />
+      <main className="w-full min-w-0 overflow-x-clip">
+        <div className="flex min-h-[calc(100vh-1px)] flex-col items-center justify-center gap-8 px-4 py-16 md:px-8 md:py-12">
+          <div className="relative w-full max-w-md space-y-6 rounded-xl border border-border bg-card p-8 pb-10 pt-14 shadow-surface-sm">
             <Button
               type="button"
               variant="ghost"
@@ -171,24 +149,22 @@ function LoginInner() {
                 <X className="size-5" />
               </Link>
             </Button>
-            <div className="text-center">
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            <div className="flex min-h-[24rem] flex-col gap-5">
+              <h1 className="text-center text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
                 {mode === "signup" ? "Welcome" : "Welcome back"}
               </h1>
-              <p className="mt-2 text-sm text-muted-foreground">{BRAND_NAME}</p>
-            </div>
 
             {!firebaseConfigured && authResolved && (
-              <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-center text-sm text-destructive">
-                Firebase client could not be configured. Confirm Railway service variables include your Firebase web app keys (same names as in{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-xs">.env.example</code>), redeploy, and open{" "}
-                <code className="rounded bg-muted px-1 py-0.5 text-xs">/api/firebase/client-config</code> — it should return JSON, not 503.
+              <p className="rounded-md border border-destructive/35 bg-destructive/10 px-3 py-2 text-center text-xs leading-snug text-destructive">
+                Firebase client is not configured. Check deployment env vars and{" "}
+                <code className="rounded bg-muted px-1 py-0.5 font-mono text-[10px]">/api/firebase/client-config</code>
+                .
               </p>
             )}
 
             <Button
               type="button"
-              className="h-12 w-full gap-2 text-base font-semibold"
+              className="h-11 w-full gap-2 text-sm font-semibold"
               onClick={onGoogle}
               disabled={busy}
             >
@@ -219,12 +195,12 @@ function LoginInner() {
               )}
             </Button>
 
-            <div className="flex gap-2">
+            <div className="flex shrink-0 gap-2 pb-1">
               <Button
                 type="button"
                 variant={mode === "signin" ? "default" : "outline"}
                 size="sm"
-                className="flex-1"
+                className="h-9 flex-1 text-sm"
                 onClick={() => setMode("signin")}
               >
                 Log in
@@ -233,14 +209,14 @@ function LoginInner() {
                 type="button"
                 variant={mode === "signup" ? "default" : "outline"}
                 size="sm"
-                className="flex-1"
+                className="h-9 flex-1 text-sm"
                 onClick={() => setMode("signup")}
               >
                 Sign up
               </Button>
             </div>
 
-            <div className="space-y-3">
+            <div className="min-h-[260px] space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="login-email">Email</Label>
                 <Input
@@ -278,50 +254,27 @@ function LoginInner() {
                 )}
               </Button>
               {mode === "signin" && (
-                <div className="flex flex-col gap-2">
-                  <Button
+                <div className="flex justify-center pt-1">
+                  <button
                     type="button"
-                    variant="link"
-                    className="h-auto w-full p-0 text-xs text-muted-foreground"
-                    onClick={onForgotPassword}
+                    className="text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline disabled:opacity-60"
+                    onClick={() => void onForgotPassword()}
                     disabled={resetBusy}
                   >
-                    {resetBusy ? (
-                      <Loader2 className="inline size-3 animate-spin" />
-                    ) : (
-                      "Forgot password? (uses email above)"
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-full text-sm"
-                    onClick={onEmailLink}
-                    disabled={busy || linkBusy}
-                  >
-                    {linkBusy ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      "Email me a sign-in link"
-                    )}
-                  </Button>
+                    {resetBusy ? "Sending…" : "Forgot password?"}
+                  </button>
                 </div>
               )}
             </div>
+            </div>
 
             {error && <p className="text-center text-sm text-destructive">{error}</p>}
-            {linkSent && (
-              <p className="text-center text-sm text-muted-foreground">
-                Check your inbox for the sign-in link. Open it on this device if you started here, or
-                enter the same email when prompted on another device.
-              </p>
-            )}
             {resetMessage && (
               <p className="text-center text-sm text-muted-foreground">{resetMessage}</p>
             )}
           </div>
         </div>
-      </HeroHighlight>
+      </main>
     </div>
   );
 }
@@ -330,7 +283,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        <div className="flex min-h-screen w-full min-w-0 items-center justify-center bg-background text-muted-foreground">
           Loading…
         </div>
       }

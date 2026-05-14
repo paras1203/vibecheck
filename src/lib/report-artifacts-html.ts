@@ -163,15 +163,16 @@ export function buildImplementationChecklistHtml(
 ): string {
   const items = resolveChecklistItems(data);
   if (!items.length) return "";
-  const ol = items
+  const rows = items
     .map(
-      (it, i) =>
-        `<li style="margin-bottom:10px"><strong>${i + 1}.</strong> ${esc(it.task)}
-        <span class="muted"> — ${esc(it.owner)} · ${esc(it.effort)}</span></li>`
+      (it) =>
+        `<tr><td>${esc(it.task)}</td><td>${esc(it.owner)}</td><td>${esc(it.effort)}</td></tr>`
     )
     .join("");
   return `<div class="section report-major"><h2>Implementation checklist</h2>
-    <ol style="padding-left:1.2rem;font-size:0.875rem;line-height:1.5">${ol}</ol>
+  <table class="report-matrix implementation-checklist-table" style="table-layout:fixed;width:100%;font-size:0.875rem;line-height:1.5;"><colgroup><col style="width:70%"><col style="width:15%"><col style="width:15%"></colgroup>
+  <thead><tr><th>Task</th><th>Owner</th><th>Effort</th></tr></thead>
+  <tbody>${rows}</tbody></table>
   </div>`;
 }
 

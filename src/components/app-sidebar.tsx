@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, type CSSProperties } from "react";
+import { Suspense } from "react";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
@@ -21,6 +21,8 @@ import {
   Shield,
   Home,
   BarChart3,
+  LayoutGrid,
+  ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -71,6 +73,12 @@ function SidebarNavInner() {
       icon: Settings,
       href: "/settings",
       active: pathname === "/settings",
+    },
+    {
+      title: "Free report",
+      icon: ClipboardList,
+      href: "/free-report",
+      active: pathname === "/free-report",
     },
   ];
 
@@ -140,6 +148,22 @@ function SidebarNavInner() {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/dashboard/admin/visual-lander"}
+                >
+                  <Link href="/dashboard/admin/visual-lander">
+                    <IconFrame
+                      size="sm"
+                      className="border-sidebar-border/80 bg-sidebar-accent/50 text-sidebar-foreground [&_svg]:size-4 [&_svg]:stroke-[1.5]"
+                    >
+                      <LayoutGrid className="size-4 stroke-[1.5]" />
+                    </IconFrame>
+                    <span>Landing visuals</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -152,18 +176,11 @@ export function AppSidebar() {
   const { user } = useAuth();
 
   return (
-    <Sidebar
-      style={
-        {
-          "--sidebar-width": "14.4rem",
-        } as CSSProperties
-      }
-      className="w-[14.4rem]"
-    >
-      <SidebarHeader className="border-b border-sidebar-border p-3.5">
+    <Sidebar>
+      <SidebarHeader className="border-b border-sidebar-border p-4">
         <Link
           href="/"
-          className="flex items-center gap-3 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
+          className="flex min-w-0 items-center gap-3 rounded-md outline-none ring-sidebar-ring focus-visible:ring-2"
         >
           <IconFrame
             size="sm"
@@ -171,7 +188,10 @@ export function AppSidebar() {
           >
             <Flame className="size-4 stroke-[1.5]" />
           </IconFrame>
-          <span className="text-[1.35rem] font-semibold leading-tight tracking-tight text-sidebar-foreground">
+          <span
+            className="truncate text-xl font-semibold leading-tight tracking-tight text-sidebar-foreground"
+            title={BRAND_NAME}
+          >
             {BRAND_NAME}
           </span>
         </Link>

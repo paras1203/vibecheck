@@ -27,7 +27,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
   });
 
   return (
-    <div className="flex w-full min-w-0 max-w-3xl flex-col gap-4">
+    <div className="flex w-full min-w-0 max-w-3xl flex-col gap-3">
       <div className="overflow-hidden rounded-lg border border-border bg-surface-1 shadow-surface-xs">
         <div className="flex items-center gap-2 border-b border-border-muted bg-surface-2/80 px-3 py-2 sm:px-4">
           <span className="size-2.5 rounded-full bg-destructive/80" />
@@ -37,8 +37,8 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
             {teaser.reportStub}
           </span>
         </div>
-        <div className="p-4 sm:p-6">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="p-3 sm:p-5">
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-base font-semibold text-foreground sm:text-lg">Your audit preview</h3>
             <div className="flex flex-wrap gap-2">
               <Badge variant="secondary">Preview</Badge>
@@ -78,7 +78,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
             </Card>
           </div>
 
-          <Card className="mt-3 border-border-muted bg-surface-2/30">
+          <Card className="mt-2 border-border-muted bg-surface-2/30">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Cost of inaction</CardTitle>
             </CardHeader>
@@ -93,14 +93,14 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
             </CardContent>
           </Card>
 
-          <div className="mt-3 rounded-lg border border-border-muted bg-surface-2/25 px-3 py-3 sm:px-4">
+          <div className="mt-2 rounded-lg border border-border-muted bg-surface-2/25 px-3 py-2.5 sm:px-4">
             <p className="text-label mb-2 text-muted-foreground">Top leak we spotted</p>
             <p className="text-sm font-medium leading-relaxed text-foreground">{teaser.criticalIssue}</p>
-            <p className="mt-3 text-label text-muted-foreground">Assessment</p>
+            <p className="mt-2 text-label text-muted-foreground">Assessment</p>
             <p className="text-sm leading-relaxed text-muted-foreground">{teaser.surprisingInsight}</p>
           </div>
 
-          <div className="mt-3 rounded-lg border border-border-muted bg-surface-2/25 px-3 py-3 sm:px-4">
+          <div className="mt-2 rounded-lg border border-border-muted bg-surface-2/25 px-3 py-2.5 sm:px-4">
             <p className="text-label mb-2 text-muted-foreground">AI Insights</p>
             <ul className="space-y-2 text-sm text-foreground">
               {teaser.insiderLines.map((line, i) => (
@@ -112,7 +112,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
             </ul>
           </div>
 
-          <div className="mt-3">
+          <div className="mt-2">
             <p className="text-label mb-2 text-muted-foreground">Site Score</p>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-6">
               {pillarTiles.map(({ label, score }) => (
@@ -135,7 +135,7 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
                 </div>
               ))}
             </div>
-            <div className="mt-3 w-full min-w-0">
+            <div className="mt-2 w-full min-w-0">
               <RoastRadar radarMetrics={teaser.radarMetrics} />
             </div>
           </div>
@@ -147,9 +147,9 @@ export function RoastTeaserPanel({ teaser, accountCreditsLine, onContinue }: Roa
           ) : null}
 
           <p className="text-center text-xs text-muted-foreground">{FULL_REPORT_SUBLINE}</p>
-      <Button type="button" size="lg" className="h-12 w-full font-semibold sm:h-14" onClick={onContinue}>
-        Continue to full report
-      </Button>
+          <Button type="button" size="lg" className="h-11 w-full font-semibold sm:h-12" onClick={onContinue}>
+            Continue to full report
+          </Button>
     </div>
   );
 }

@@ -94,7 +94,7 @@ export function WorkspaceTitle({ user }: Props) {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">{display}</h1>
+              <h2 className="text-3xl font-semibold tracking-tight text-primary">{display}</h2>
               <Button
                 type="button"
                 size="icon"

@@ -32,6 +32,7 @@ import {
 import type { ReportArtifactsInput } from "@/lib/report-artifacts-html";
 import { ensureQuickWinsUpTo } from "@/lib/quick-wins-fill";
 import { detailedAuditToDisplayRows } from "@/lib/report-v2-pillar-audit";
+import { buildAuditImpactPillHtml, buildAuditStatusPillHtml } from "@/lib/audit-table-cells";
 import {
   CATEGORY_TAB_ORDER,
   displayNameForCategoryKey,
@@ -284,10 +285,10 @@ export function buildReportV2InnerHtml(
       const body =
         rows.length === 0
           ? `<p class="muted">${esc("No rows.")}</p>`
-          : `<table class="report-matrix" style="font-size:11px;"><thead><tr><th>${esc("Element")}</th><th>${esc("Status")}</th><th>${esc("Impact")}</th><th>${esc("Working")}</th><th>${esc("Not working")}</th><th>${esc("Fix")}</th></tr></thead><tbody>${rows
+          : `<table class="report-matrix pillar-audit-matrix" style="table-layout:fixed;width:100%;font-size:11px;"><colgroup><col style="width:10%"><col style="width:10%"><col style="width:5%"><col style="width:25%"><col style="width:25%"><col style="width:25%"></colgroup><thead><tr><th>${esc("Element")}</th><th>${esc("Status")}</th><th>${esc("Impact")}</th><th>${esc("Working")}</th><th>${esc("Not working")}</th><th>${esc("Fix")}</th></tr></thead><tbody>${rows
               .map(
                 (r) =>
-                  `<tr><td>${esc(r.element)}</td><td>${esc(r.status)}</td><td>${esc(r.impact)}</td><td>${esc(r.working)}</td><td>${esc(r.notWorking)}</td><td>${esc(r.fix)}</td></tr>`
+                  `<tr><td>${esc(r.element)}</td><td>${buildAuditStatusPillHtml(r.status, esc)}</td><td>${buildAuditImpactPillHtml(r.impact, esc)}</td><td>${esc(r.working)}</td><td>${esc(r.notWorking)}</td><td>${esc(r.fix)}</td></tr>`
               )
               .join("")}</tbody></table>`;
       return `<h3>${esc(title)}</h3>${body}`;
@@ -440,7 +441,7 @@ export function buildReportV2InnerHtml(
   </div>`;
 
   const experimentSection = `<div class="section report-major"><h2>${esc("Experiment backlog")}</h2>
-    <table class="report-matrix"><thead><tr><th>#</th><th>${esc("Test")}</th><th>${esc("Hypothesis")}</th><th>${esc("Metric")}</th><th>${esc("Notes")}</th></tr></thead><tbody>${experimentRows}</tbody></table>
+    <table class="report-matrix experiment-backlog-table" style="table-layout:fixed;width:100%;font-size:11px;"><colgroup><col style="width:5%"><col style="width:18%"><col style="width:27%"><col style="width:20%"><col style="width:30%"></colgroup><thead><tr><th>#</th><th>${esc("Test")}</th><th>${esc("Hypothesis")}</th><th>${esc("Metric")}</th><th>${esc("Notes")}</th></tr></thead><tbody>${experimentRows}</tbody></table>
   </div>`;
 
   const pillarSection = `<div class="section report-major"><h2>${esc("Detailed audit by pillar")}</h2>

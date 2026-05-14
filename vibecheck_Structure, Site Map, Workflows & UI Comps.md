@@ -1,3 +1,222 @@
+## [2026-05-14] - # Login shell match + onboarding without URL step
+
+## 2. Site Map (Pages & Linkage)
+**`/login`**: marketing **`Navbar`** + **`main`** (matches **`/`** layout); centered auth card.
+
+## 3. Workflows (Chronology)
+### Onboarding
+**`/onboarding`**: 2 steps — details (name + role) → goal → **Submit** → **`/`** (not dashboard, no in-flow roast). **Removed**: URL capture tile and **`RoastGenerationOverlay`** from this flow.
+
+## 7. Page/Screen-Wise Component List
+**`product-onboarding-screen.tsx`**: **`Navbar`** + **`main`** wrapper for visual parity with landing.
+
+---
+
+## [2026-05-14] - # runway.app production + Dodo live
+
+## 1. Directory Structure (Source)
+Delta: [`.env.example`](.env.example) (runway + **live_mode** notes); [`create-session/route.ts`](src/app/api/dodo/create-session/route.ts) (Dodo 401 message: production/runway, not Cloud Run); [`should-use-bundled-chromium.ts`](src/lib/should-use-bundled-chromium.ts) comment.
+
+## 6. Summary
+Deploy env on runway.app; **`DODO_PAYMENTS_ENVIRONMENT=live_mode`** + live Dodo key; **`NEXT_PUBLIC_APP_URL`** for redirects.
+
+---
+
+## [2026-05-14] - # Landing/checkout/share/cloud sync delta
+
+## 1. Directory Structure (Source)
+[`post-login-redirect.ts`](src/lib/post-login-redirect.ts), [`onboarding-firestore.ts`](src/lib/onboarding-firestore.ts), [`grandfather-onboarding-missing/route.ts`](src/app/api/admin/grandfather-onboarding-missing/route.ts); [`dodo-checkout-flow.tsx`](src/components/checkout/dodo-checkout-flow.tsx), [`guest-checkout-identity-form.tsx`](src/components/checkout/guest-checkout-identity-form.tsx), [`guest-checkout-contact/route.ts`](src/app/api/user/guest-checkout-contact/route.ts), [`create-session/route.ts`](src/app/api/dodo/create-session/route.ts); [`api/user/roast-cloud-*`](src/app/api/user/); [`roast-cloud-client.ts`](src/lib/roast-cloud-client.ts); [`dashboard/admin/visual-lander/page.tsx`](src/app/dashboard/admin/visual-lander/page.tsx); [`recent-reports-section.tsx`](src/components/dashboard/recent-reports-section.tsx); [`share-your-score.tsx`](src/components/roast/share-your-score.tsx) compact; [`landing-pricing-utils.ts`](src/lib/landing-pricing-utils.ts) direct **`/checkout`**.
+
+## 2. Site Map (Pages & Linkage)
+**`/dashboard/admin/visual-lander`**: admin landing visual links. **Public landing**: no navbar VariationSwitcher.
+
+## 6. Summary
+Guest checkout + cloud-only paid/admin roast backup + share affordances.
+
+---
+
+## [2026-05-13] - # SaaS inset full-width
+
+## 1. Directory Structure (Source)
+Delta: [`authenticated-shell.tsx`](src/components/authenticated-shell.tsx) (remove default **`mx-auto` + `max-w` 88rem**; **`constrainContentWidth`** only **`mx-auto` + `72rem`**); [`shell-layout.ts`](src/lib/shell-layout.ts) **`SHELL_SIDEBAR_WIDTH_DESKTOP` `18rem`**; [`sidebar.tsx`](src/components/ui/sidebar.tsx) (**`SidebarHeader`** **`shrink-0 overflow-visible`**; peer without **`md:min-w-0`**).
+
+## 6. Summary
+Dashboard-style full-bleed main column; checkout narrow mode preserved.
+
+---
+
+## [2026-05-13] - # Layout shell consolidation
+
+## 1. Directory Structure (Source)
+Delta: [`src/lib/shell-layout.ts`](src/lib/shell-layout.ts) (**`SHELL_SIDEBAR_WIDTH_DESKTOP`**, main max-width classnames); [`src/components/ui/sidebar.tsx`](src/components/ui/sidebar.tsx) (desktop **`--sidebar-width`** from **`shell-layout`**); [`src/components/authenticated-shell.tsx`](src/components/authenticated-shell.tsx) (**`CONTENT_PAD`**, **`min-h-0 flex-1`**, **`gap-8`**); [`src/app/roast/[id]/page.tsx`](src/app/roast/[id]/page.tsx), admin routes (**`AuthenticatedShell`**); [`src/components/app-sidebar.tsx`](src/components/app-sidebar.tsx) (brand row); [`.cursor/rules/design-system.mdc`](.cursor/rules/design-system.mdc).
+
+## 2. Site Map (Pages & Linkage)
+Admin/roast/report URLs unchanged; optional sticky shell titles **`Admin overview`**, **`Admin analytics`**.
+
+## 7. Page/Screen-Wise Component List
+Admin pages: **`AuthenticatedShell`** + **`SidebarTrigger`** in shell header versus prior inline shell.
+
+---
+
+## 2026-05-13 (billing auth) - Dodo 401 diagnostics + health check
+
+## 1. Directory Structure (Source)
+Delta: [`src/lib/require-firebase-api-auth.ts`](src/lib/require-firebase-api-auth.ts) (`requireFirebaseApiUser` — Admin init → **503** not **401**); [`src/lib/firebase-bearer-unauthorized-payload.ts`](src/lib/firebase-bearer-unauthorized-payload.ts); [`src/lib/request-auth-firebase.ts`](src/lib/request-auth-firebase.ts) (init + token hints); [`src/app/api/dodo/create-session/route.ts`](src/app/api/dodo/create-session/route.ts), [`verify/route.ts`](src/app/api/dodo/verify/route.ts), [`delete-account/route.ts`](src/app/api/user/delete-account/route.ts); [`src/app/api/health/billing/route.ts`](src/app/api/health/billing/route.ts); [`scripts/verify-billing-prereqs.mjs`](scripts/verify-billing-prereqs.mjs); `npm run verify:billing`.
+
+## 3. Workflows (Chronology)
+### Billing prerequisite
+Local: `npm run verify:billing`. Deployed: `GET /api/health/billing` must return `"ok": true`.
+
+---
+
+## 2026-05-13 - Self-service account erasure (GDPR/CCPA-aligned)
+
+## 1. Directory Structure (Source)
+Delta: [`src/app/api/user/delete-account/route.ts`](src/app/api/user/delete-account/route.ts); [`src/lib/account-erasure-server.ts`](src/lib/account-erasure-server.ts); [`src/lib/account-deletion-constants.ts`](src/lib/account-deletion-constants.ts); [`src/lib/clear-site-device-data.ts`](src/lib/clear-site-device-data.ts); [`src/components/settings/delete-account-dialog.tsx`](src/components/settings/delete-account-dialog.tsx); [`src/components/legal/privacy-policy-content-rest.tsx`](src/components/legal/privacy-policy-content-rest.tsx) (retention + rights copy).
+
+## 2. Site Map (Pages & Linkage)
+`/settings` delete control unchanged URL; privacy policy text updated.
+
+## 3. Workflows (Chronology)
+### Account deletion
+User confirms → API removes **`users/{uid}`**, **`roasts`** / **`scans`** / **`audit_logs`** / **`audit_failures`** by **`userId`**, strips **`userId`** from **`payments`** with timestamp → Auth user deleted → local device caches cleared.
+
+---
+
+## 2026-05-13 (wizard) - Onboarding wizard, ensure profile, workspace header
+
+## 1. Directory Structure (Source)
+Delta: [`src/lib/ensure-user-profile-server.ts`](src/lib/ensure-user-profile-server.ts); [`src/app/api/user/complete-onboarding/route.ts`](src/app/api/user/complete-onboarding/route.ts); [`src/app/api/roast/route.ts`](src/app/api/roast/route.ts) calls **`ensureUserProfileForUid`** before credit debit; [`src/context/AuthContext.tsx`](src/context/AuthContext.tsx) **`completeProductOnboarding`** → API; [`product-onboarding-screen.tsx`](src/components/onboarding/product-onboarding-screen.tsx) onboarding wizard (see 2026-05-14 entry: 2-step to `/`); [`authenticated-shell.tsx`](src/components/authenticated-shell.tsx) optional **`title`** + **`SidebarTrigger`** strip; [`home`](src/app/home/page.tsx), [`dashboard`](src/app/dashboard/page.tsx), [`settings`](src/app/settings/page.tsx), [`billing`](src/app/billing/page.tsx); [`dodo-open-checkout.ts`](src/components/dodo-open-checkout.ts) **401 details**; [`dodo-checkout-flow.tsx`](src/components/checkout/dodo-checkout-flow.tsx) **`authResolved`** gate.
+
+## 3. Workflows (Chronology)
+### Onboarding
+Steps: details → goal → **`POST /api/user/complete-onboarding`** → **`/`** (see top-of-file 2026-05-14 delta; previously included URL + first roast).
+
+---
+
+## 2026-05-13 (late) - Landing nav, sidebar width, onboarding tiles
+
+## 1. Directory Structure (Source)
+Delta: [`src/components/landing/themed-default-landing.tsx`](src/components/landing/themed-default-landing.tsx) (overflow on **`main`** only); [`src/components/navbar.tsx`](src/components/navbar.tsx) (wider shell, concept links single row); [`src/components/app-sidebar.tsx`](src/components/app-sidebar.tsx); app routes **`--sidebar-width` `16rem`** + [`authenticated-shell.tsx`](src/components/authenticated-shell.tsx); [`src/components/onboarding/product-onboarding-screen.tsx`](src/components/onboarding/product-onboarding-screen.tsx) (3-tile onboarding); [`src/context/AuthContext.tsx`](src/context/AuthContext.tsx) **`completeProductOnboarding`** **`setDoc` merge**; [`src/lib/onboarding-options.ts`](src/lib/onboarding-options.ts).
+
+## 2. Site Map (Pages & Linkage)
+`/onboarding` tile flow unchanged URL.
+
+## 3. Workflows (Chronology)
+### Onboarding first audit
+User fills name, role, URL, goal → **`refreshProfile`** → credit check from Firestore → **`completeProductOnboarding`** (merge write) → **`startAuthenticatedRoast`**.
+
+---
+
+## 2026-05-13 - Sidebar viewport flex + AuthenticatedShell
+
+## 1. Directory Structure (Source)
+Delta: [`src/components/ui/sidebar.tsx`](src/components/ui/sidebar.tsx) (provider flex row nowrap, **`overflow-x-clip`**; **`SidebarInset`** **`min-h-0`**, horizontal clip + **`overflow-y-auto`**); [`src/app/layout.tsx`](src/app/layout.tsx) (`body` **`min-w-0 overflow-x-clip`**); new [`src/components/authenticated-shell.tsx`](src/components/authenticated-shell.tsx) (shared **`SidebarProvider`** + **`AppSidebar`** + inset, **`14.4rem`** rail, **`max-w-[min(100%,88rem)]`** inner column, **`constrainContentWidth`** `72rem`).
+
+## 2. Site Map (Pages & Linkage)
+`/dashboard`, `/checkout` (via **`DodoCheckoutFlow`**) use **`AuthenticatedShell`**; other app routes unchanged URLs.
+
+## 3. Workflows (Chronology)
+### Authenticated desktop layout
+Sidebar flex spacer reserves rail width; main column **`flex-1 min-w-0`** scrolls vertically inside **`SidebarInset`**; horizontal overflow clipped at inset + shell.
+
+## 7. Page/Screen-Wise Component List (delta)
+Dashboard/checkout: wrap with **`AuthenticatedShell`** (optional narrow **`constrainContentWidth`**).
+
+---
+
+## 2026-05-12 - Layout overflow, master admins, master analytics
+
+## 1. Directory Structure (Source)
+Delta: [`src/lib/admin.ts`](src/lib/admin.ts) (master founder emails + unified admin checks); [`src/lib/request-admin-auth.ts`](src/lib/request-admin-auth.ts); [`src/lib/audit-failure-log.ts`](src/lib/audit-failure-log.ts); [`src/app/api/admin/analytics/route.ts`](src/app/api/admin/analytics/route.ts); new APIs [`src/app/api/admin/users/search/route.ts`](src/app/api/admin/users/search/route.ts), [`src/app/api/admin/users/[uid]/summary/route.ts`](src/app/api/admin/users/[uid]/summary/route.ts), [`src/app/api/admin/promo-registration/route.ts`](src/app/api/admin/promo-registration/route.ts), [`src/app/api/admin/grant-credits/route.ts`](src/app/api/admin/grant-credits/route.ts), [`src/app/api/user/claim-promo-registration/route.ts`](src/app/api/user/claim-promo-registration/route.ts); [`src/components/admin/admin-analytics-dashboard.tsx`](src/components/admin/admin-analytics-dashboard.tsx), [`src/components/admin/admin-analytics-extended.tsx`](src/components/admin/admin-analytics-extended.tsx), [`src/components/admin/admin-master-controls.tsx`](src/components/admin/admin-master-controls.tsx); [`src/context/AuthContext.tsx`](src/context/AuthContext.tsx) (`pendingHomeMessage`, `dismissPendingHomeMessage`, master signup **pro**); [`src/hooks/use-claim-promo-on-mount.ts`](src/hooks/use-claim-promo-on-mount.ts); [`src/components/dashboard/pending-home-message-banner.tsx`](src/components/dashboard/pending-home-message-banner.tsx); authenticated shell pages (removed duplicate sidebar margin).
+
+## 2. Site Map (Pages & Linkage)
+`/dashboard/admin/analytics`: extended charts + master controls (promo pool, user search/summary, bonus credits). New API routes listed above.
+
+## 3. Workflows (Chronology)
+### Home / Dashboard
+After load, eligible users **`POST /api/user/claim-promo-registration`** once; **`pendingHomeMessage`** shows in banner until dismissed (clears Firestore field).
+
+### Admin
+Promo pool stored at Firestore **`admin_config/promo_registration`**; failures logged to **`audit_failures`** on authenticated roast errors (422/500).
+
+## 7. Page/Screen-Wise Component List (delta)
+Admin analytics: `AdminMasterControls`, `AdminAnalyticsExtended`; home/dashboard: `PendingHomeMessageBanner` below title/workspace.
+
+---
+
+## 2026-05-11 (Apple nav radar Dodo) - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+Delta: [`src/components/landing/shared/url-input-form.tsx`](src/components/landing/shared/url-input-form.tsx) (A1 hero URL **`ring-primary`** + URL/Roast **`sm:flex-row`** matching comparison CTA sizing), [`sample-report-preview.tsx`](src/components/landing/shared/sample-report-preview.tsx) + [`roast-report-v2.tsx`](src/components/roast/roast-report-v2.tsx) + [`roast-radar.tsx`](src/components/roast-radar.tsx) (tile-framed radar, ~10% taller embedded viewport), [`navbar.tsx`](src/components/navbar.tsx), [`globals.css`](src/app/globals.css) (Apple-like **light** neutrals/shadows/`--radius`), [`request-auth-firebase.ts`](src/lib/request-auth-firebase.ts), [`api/dodo/verify`](src/app/api/dodo/verify/route.ts) + [`create-session`](src/app/api/dodo/create-session/route.ts).
+
+## 3. Workflows (Chronology)
+### Billing / checkout (Dodo)
+`POST /api/dodo/verify` returns **`details`** alongside **`error: Unauthorized`** when Firebase bearer verification fails (missing vs invalid token / Admin env mismatch), same helper as create-session.
+
+## 7. Page/Screen-Wise Component List (delta)
+Light theme: page gray `#f5f5f7`, cards white, foreground `#1d1d1f`, muted `#86868b`, softer `--shadow-xs` / `--shadow-sm`.
+
+---
+
+## 2026-05-11 (UX polish) - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+Delta: `src/components/landing/a1/hero-a1.tsx`, `src/components/landing/shared/url-input-form.tsx`, `src/components/landing/shared/sample-report-preview.tsx`, `src/components/roast-radar.tsx` (`frameless`), `src/components/landing/roast-analysis-loader.tsx` + `src/lib/roast-loader-phase-timings.ts`, `src/app/globals.css` (light `--primary`), `src/lib/audit-table-cells.ts`, `src/components/roast/roast-report-v2.tsx`, `src/components/roast/implementation-checklist-section.tsx`, `src/components/roast/scroll-of-death-zones.tsx`, `src/components/roast/first-viewport-snapshot-panel.tsx`.
+
+## 3. Workflows (Chronology)
+### Roast overlay analyzing
+Phase timing panel: eight rollup phases + collapsible per-step labels (full `ROAST_ANALYSIS_MESSAGES` text); timings still derived from client step transitions.
+
+### Report V2
+Pillar audit Status/Impact: colored text only (no pill backgrounds); Impact shows High/Medium/Low. Implementation checklist: `table-auto` with wrapping task cells. Scroll-of-death issue/fix blocks mirror SEO health list typography. First viewport snapshot: narrower frame (`max-w-[70%]`), shorter min-height, image `object-contain` with capped max-height.
+
+## 7. Page/Screen-Wise Component List (delta)
+Marketing sample preview: radar uses `RoastRadar` `frameless` without extra `ChartPanel` border; shorter radar viewport height alongside slightly shorter Site Score tiles.
+
+---
+
+## 2026-05-11 (PM) - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+Delta: `src/lib/audit-table-cells.ts` (Status/Impact pill helpers); landing `url-input-form`, `HeroB1`/`HeroC2`, `preview-b1`; navbar; `workspace-title`; `implementation-checklist-section`; `roast-report-v2`; `report-artifacts-html` / `report-v2-html-blocks` / `report-theme`.
+
+## 2. Site Map (Pages & Linkage)
+`/`: single A1 section stack light+dark (`ThemedDefaultLanding`); `/v/b1`, `/v/c2` unchanged routes; marketing heroes B1/C2 no longer show “Powered by Gemini”.
+
+## 3. Workflows (Chronology)
+### Main page/screen → Linked page/screen → Workflow steps
+Roast Report V2: implementation checklist renders as Task | Owner | Effort table; pillar audit + experiment backlog tables use fixed column percentages; Status/Impact as colored pills (HTML/PDF parity via shared pill styles).
+
+### Desktop / Mobile
+Same; navbar link row wraps with `flex-wrap` where needed.
+
+## 7. Page/Screen-Wise Component List (delta)
+`/`: `Navbar` tone default + overflow-safe flex; dashboard workspace title (`h1`) uses `text-primary`.
+
+---
+
+## 2026-05-11 - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+Delta: `docs/firestore-credits-audit.md`; landing/roast overlay/loader tweaks under `src/components/landing/`; `SidebarProvider` gains `min-w-0` (`src/components/ui/sidebar.tsx`).
+
+## 2. Site Map (Pages & Linkage)
+Unchanged URLs; `/` and `/login` presentation tightened; `/roast/[id]` report shell less prone to horizontal spill (header button row + tabs wrapper `min-w-0`/`overflow-x-hidden`).
+
+## 3. Workflows (Chronology)
+### Main page/screen → Linked page/screen → Workflow steps
+Roast generation overlay: fullscreen `min-h-dvh` treatment; analyzing shows optional step-timing HUD; teaser panel slightly denser spacing.
+
+### Desktop
+### Mobile
+Same flows; HUD uses `fixed` positioning within viewport during overlay.
+
+## 7. Page/Screen-Wise Component List (delta)
+Roast teaser: condensed vertical gaps/padding on preview card stack; radar section unchanged logically.
+
+---
+
 ## 2025-03-25 - # Project Structure, Site Map, Workflows & UI Comps
 
 ## 1. Directory Structure (Source)
@@ -535,7 +754,7 @@ PDF route implementation (if product requires).
 - Billing “Buy Pro / Agency” navigates to `/checkout` with current stepper quantities (no full-page redirect to hosted Dodo URL).
 
 ### 7. Components (delta)
-- `src/components/checkout/dodo-checkout-flow.tsx`, `checkout-order-summary.tsx`; `src/lib/dodo-checkout-sdk-mode.ts`, `dodo-inline-checkout-element-id.ts`.
+- `src/components/checkout/dodo-checkout-flow.tsx`, `checkout-order-summary.tsx`; Dodo overlay checkout (`dodopayments-checkout`).
 - `POST /api/dodo/create-session` uses `redirect_immediately: false` for embedded checkout.
 
 **Confirmed:** This structure log was appended.
@@ -550,5 +769,60 @@ PDF route implementation (if product requires).
 
 ### 6. Paid exports (delta)
 - `report-html.ts` and `pdf-templates.ts` include how-to-read, scan context, analytics readiness, experiments, checklist in line with `/roast/[id]`.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-12 - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+- `src/lib/dodo-sdk-display-mode.ts` (shared `test`|`live` type).
+- `src/app/api/dodo/create-session/route.ts` response adds **`sdkMode`**.
+- `src/components/dodo-open-checkout.ts` uses session result + verify retries; removed dependency on deleted `dodo-checkout-sdk-mode.ts`.
+- `src/components/checkout/dodo-checkout-flow.tsx` initializes the Dodo SDK with server-provided **`sdkMode`**.
+
+## 3. Workflows (Chronology)
+### Billing / checkout (Dodo)
+Client SDK mode follows **`DODO_PAYMENTS_ENVIRONMENT`** via create-session. `verifyDodoPaymentReturn` retries when payment status is still **`processing`**.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-12 (Onboarding audit gate) - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+- New: `src/app/onboarding/page.tsx`, `src/components/onboarding/product-onboarding-screen.tsx`, `src/hooks/use-authenticated-roast-flow.ts`, `src/lib/onboarding-firestore.ts`, `src/lib/onboarding-options.ts`, `src/lib/pending-audit-url.ts`, `src/lib/post-login-redirect.ts`, `src/lib/user-onboarding.ts`.
+- Updated: `src/context/AuthContext.tsx` (onboarding fields + `completeProductOnboarding`), `src/hooks/use-landing-roast.ts`, `src/app/login/page.tsx`, `src/app/home/page.tsx`, `src/app/dashboard/page.tsx`, `src/components/navbar.tsx`, `src/lib/roast-credit-cost.ts` (`NEXT_PUBLIC_ROAST_CREDITS_PER_GENERATION` mirror).
+
+## 2. Site Map (Pages & Linkage)
+- `/onboarding` — authenticated first-run URL + role/goal radios; credit gate before `POST /api/roast`; then existing overlay → `/roast/[id]`.
+
+## 3. Workflows (Chronology)
+### Marketing Roast CTA (logged out or not onboarded)
+Hero/comparison/pricing `onRoast` stores pending URL in `sessionStorage`, then `/login?next=/onboarding` or `/onboarding`; signed-in users with `onboardingCompleted: false` cannot start a roast from landing until onboarding.
+
+### Login redirect
+`resolvePostLoginPath`: incomplete onboarding and default `/dashboard` (or no `next` query) → `/onboarding`; explicit non-dashboard `next` preserved.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-14 - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+- `src/app/api/free-report/route.ts` — `POST`, Bearer auth, no credits; runs `runFreeToolsAudit`.
+- `src/lib/run-free-tools-audit.ts`, `src/lib/free-report-storage-key.ts`, `src/types/free-report.ts`.
+- `src/app/free-report/page.tsx`, `src/components/free-report/*`, `src/hooks/use-free-report-flow.ts`.
+- `src/app/home/page.tsx` (second CTA), `src/components/app-sidebar.tsx` (nav item below Settings).
+
+## 2. Site Map (Pages & Linkage)
+- `/free-report` — authenticated free programmatic report; sidebar **Free report**.
+
+## 3. Workflows (Chronology)
+### Home → Free scan
+User enters URL → **Free conversion scan** → `POST /api/free-report` → `sessionStorage` → `/free-report` renders `FreeReportResults` with upsell to full roast/billing.
 
 **Confirmed:** This structure log was appended.

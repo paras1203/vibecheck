@@ -146,7 +146,7 @@ export function AccountSettings() {
               type="button"
               variant="outline"
               size="sm"
-              className="gap-2"
+              className="h-9 min-w-[9rem] px-4 text-sm font-medium"
               onClick={() => void onChangePassword()}
               disabled={sendingReset || !email}
             >

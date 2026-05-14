@@ -31,12 +31,16 @@ export function PrivacyPolicyContentRest() {
           </li>
           <li>
             <span className="text-foreground">Security and billing records</span> — as required for security,
-            accounting, and legal compliance.
+            accounting, and legal compliance. If you use self-service deletion, we may keep limited transaction
+            metadata needed for those purposes with your account identifiers removed where feasible.
           </li>
         </ul>
         <p className="text-muted-foreground">
-          You may request deletion as described below; some residual copies may persist in backups for a
-          limited time before automatic purge.
+          You may delete your account yourself from in-product settings (Settings → Delete account), which
+          removes your sign-in identity and deletes or detaches personal data we associate with that account,
+          subject to the billing and legal retention points above. You may also request deletion or other
+          privacy rights by emailing us. Some residual copies may persist in backups for a limited time
+          before automatic purge.
         </p>
       </section>
 
@@ -62,12 +66,15 @@ export function PrivacyPolicyContentRest() {
           withdraw consent. You may also have the right to lodge a complaint with a supervisory authority.
         </p>
         <p className="text-muted-foreground">
-          To exercise rights, email{" "}
+          To exercise rights, you can use{" "}
+          <span className="text-foreground">Settings → Delete account</span> for full self-service account
+          erasure, or email{" "}
           <a className="text-foreground underline hover:no-underline" href={`mailto:${LEGAL_CONTACT_EMAIL}`}>
             {LEGAL_CONTACT_EMAIL}
-          </a>
-          . We may need to verify your identity before fulfilling requests. We will respond within the
-          timeframe required by applicable law where applicable.
+          </a>{" "}
+          for access, correction, portability, objection, or other requests. We may need to verify your
+          identity before fulfilling requests. We will respond within the timeframe required by applicable
+          law where applicable.
         </p>
       </section>
 

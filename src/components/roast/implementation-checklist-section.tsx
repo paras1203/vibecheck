@@ -3,7 +3,6 @@ import { IconFrame } from "@/components/ui/icon-frame";
 import { ListTodo } from "lucide-react";
 import { resolveChecklistItems } from "@/lib/report-artifacts-html";
 import type { ReportArtifactsInput } from "@/lib/report-artifacts-html";
-import { Badge } from "@/components/ui/badge";
 
 type Props = { roastLike: ReportArtifactsInput };
 
@@ -20,22 +19,31 @@ export function ImplementationChecklistSection({ roastLike }: Props) {
           Implementation checklist
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <ol className="list-decimal space-y-3 pl-5 text-sm text-muted-foreground">
-          {items.map((it, i) => (
-            <li key={`${it.task}-${i}`} className="pl-1">
-              <span className="text-foreground">{it.task}</span>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                <Badge variant="outline" className="font-normal">
-                  Owner: {it.owner}
-                </Badge>
-                <Badge variant="secondary" className="font-normal">
-                  Effort: {it.effort}
-                </Badge>
-              </div>
-            </li>
-          ))}
-        </ol>
+      <CardContent className="overflow-x-auto">
+        <table className="w-full min-w-[min(100%,320px)] table-auto text-sm">
+          <thead className="border-b border-border text-left text-caption text-muted-foreground">
+            <tr>
+              <th className="py-2 pr-3 align-bottom font-medium">Task</th>
+              <th className="py-2 pr-2 align-bottom font-medium">Owner</th>
+              <th className="py-2 align-bottom font-medium">Effort</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((it, i) => (
+              <tr key={`${it.task}-${i}`} className="border-b border-border-muted align-top last:border-0">
+                <td className="min-w-[12rem] max-w-[min(100%,48rem)] py-2.5 pr-3 break-words text-foreground [overflow-wrap:anywhere]">
+                  {it.task}
+                </td>
+                <td className="min-w-[5rem] whitespace-normal py-2.5 pr-2 break-words text-muted-foreground">
+                  {it.owner}
+                </td>
+                <td className="min-w-[4rem] whitespace-normal py-2.5 break-words text-muted-foreground">
+                  {it.effort}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </CardContent>
     </Card>
   );

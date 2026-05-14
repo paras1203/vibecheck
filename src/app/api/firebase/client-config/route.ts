@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 /**
  * Public Firebase web SDK fields (same as Firebase Console “SDK setup”).
  * Lets the browser recover when NEXT_PUBLIC_* was empty at `next build` (e.g. Docker)
- * but variables exist at runtime on the server (Railway, etc.).
+ * but variables exist at runtime on the server (Railway, runway.app, etc.).
  */
 export function GET() {
   const cfg = readFirebaseWebPublicConfigFromProcessEnv();

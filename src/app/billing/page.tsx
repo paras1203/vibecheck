@@ -2,8 +2,7 @@
 
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AuthenticatedShell } from "@/components/authenticated-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
@@ -123,12 +122,38 @@ function BillingPageContent() {
     if (searchParams.get("paid") !== "1" || paidToastRef.current) return;
     paidToastRef.current = true;
     toast.success("Payment complete", { description: "Your credits are updated." });
-  }, [searchParams]);
+    if (firebaseUser?.isAnonymous) {
+      toast.info("Create your account", {
+        description: "Sign up with email or Google so you can recover credits on any device.",
+        action: {
+          label: "Sign up",
+          onClick: () => router.push("/login?mode=signup"),
+        },
+        duration: 14_000,
+      });
+    }
+  }, [searchParams, firebaseUser, router]);
 
   useEffect(() => {
     const paymentId = searchParams.get("payment_id");
     const status = searchParams.get("status");
     if (!paymentId || status !== "succeeded" || !firebaseUser || !user) return;
+
+    // #region agent log
+    fetch("http://127.0.0.1:7848/ingest/82f5425f-b2b1-4559-a030-418ece2f80c9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b9a3d6" },
+      body: JSON.stringify({
+        sessionId: "b9a3d6",
+        runId: "pre-fix",
+        hypothesisId: "H3",
+        location: "billing/page.tsx:verify-effect",
+        message: "billing has payment_id + succeeded; will verify",
+        data: { paymentIdPrefix: paymentId.slice(0, 8), status },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     const dedupeKey = `dodo_verify_${paymentId}`;
     if (typeof sessionStorage !== "undefined" && sessionStorage.getItem(dedupeKey)) {
@@ -264,21 +289,9 @@ function BillingPageContent() {
   ];
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "14.4rem",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="flex-1 overflow-auto">
-        <div className="flex min-h-screen w-full min-w-0 max-w-[min(100%,88rem)] flex-col items-stretch gap-8 bg-background p-6 pt-8 md:ml-[14.4rem] md:w-[calc(100%-14.4rem)] md:p-10 md:pt-10">
-          <div className="w-full max-w-4xl">
+    <AuthenticatedShell title="Billing & Credits">
+      <div className="w-full max-w-4xl">
             <div className="mb-8">
-              <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">
-                Billing & Credits
-              </h1>
               <p className="text-muted-foreground">
                 Purchase credits through Dodo Payments. Prices are shown in USD; your checkout may
                 show tax or local currency depending on your card and region.
@@ -390,9 +403,7 @@ function BillingPageContent() {
               </Card>
             )}
           </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+    </AuthenticatedShell>
   );
 }
 

@@ -10,7 +10,7 @@ export function TestimonialsB1() {
     >
       <div className="container mx-auto max-w-6xl">
         <h2 className="sr-only">Social proof</h2>
-        <TestimonialsRow />
+        <TestimonialsRow cardClassName="rounded-xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] shadow-none hover:shadow-none" />
       </div>
     </section>
   );

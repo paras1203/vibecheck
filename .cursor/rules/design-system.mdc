@@ -20,13 +20,14 @@ globs: ["src/app/**/*.tsx", "src/components/**/*.tsx"]
 
 ## Components
 - Primitives live under `src/components/ui/` (shadcn-style). Prefer `Button`, `Card`, `Badge`, `Input`, `Tabs`, `Alert`, `Dialog`, `Sheet` with token-based classes.
-- Authenticated shell: `SidebarProvider`, `Sidebar`, `SidebarInset` — main content must not sit under the fixed sidebar width.
+- Authenticated app shell: **`AuthenticatedShell`** wraps `SidebarProvider` → `Sidebar` (**`AppSidebar`**) → `SidebarInset`. The desktop **`Sidebar`** uses a **flex spacer** matching `--sidebar-width` plus a fixed panel; **main content stays in `SidebarInset`** (`min-w-0`, scroll on the inset). Prefer this over ad-hoc `SidebarProvider` copies on pages.
+
+## Layout
+- Do **not** use `margin-left` hacks (e.g. `ml-[14.4rem]`) next to the sidebar; **spacer + fixed rail** reserves width (`--sidebar-width` from [`src/lib/shell-layout.ts`](src/lib/shell-layout.ts)).
+- **`AuthenticatedShell`**: main fills **`SidebarInset`** (no default centered **`max-w-[min(…,88rem)]`** / **`mx-auto`**). Use **`constrainContentWidth`** only for narrow flows (e.g. checkout **`max-w-[min(100%,72rem)]`** + **`mx-auto`**).
 
 ## Charts
 - In-app charts read CSS variables via `useChartTheme` (`--chart-1` … `--chart-5`). Do not hardcode chart colors in components.
 
 ## PDF / static HTML
 - Server-side report styling uses `reportHex` in `src/lib/report-theme.ts`. When changing app tokens, update `reportHex` in the same PR so exports stay on-brand.
-
-## Layout
-- Dashboard/report pages: preserve sidebar width compensation (`ml-[14.4rem]` or equivalent) so content is not obscured.

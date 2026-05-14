@@ -20,8 +20,8 @@ export function PreviewB1() {
           <p className="mt-4 text-sm font-medium text-muted-foreground">Sample audit preview</p>
         </div>
         <SampleReportPreview
-          shellClassName="rounded-3xl border-0 bg-[var(--lv-minimal-bg)] shadow-surface-sm"
-          chromeClassName="rounded-t-3xl border-b border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-1)]"
+          shellClassName="rounded-xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] shadow-none"
+          chromeClassName="rounded-t-xl border-b border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-2)]"
           bodyClassName="bg-[var(--lv-minimal-bg)]"
           cardClassName="border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-1)]"
         />

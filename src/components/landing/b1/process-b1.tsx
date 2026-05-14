@@ -47,7 +47,7 @@ export function ProcessB1() {
             <div key={s.title} className="relative flex flex-col items-center text-center">
               <div
                 className={cn(
-                  "relative z-10 mb-6 flex size-16 items-center justify-center rounded-full border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-1)] shadow-surface-xs transition-transform hover:scale-105",
+                  "relative z-10 mb-6 flex size-16 items-center justify-center rounded-full border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-2)] transition-transform hover:scale-105",
                 )}
               >
                 <span className="absolute -top-2 left-1/2 flex size-7 -translate-x-1/2 items-center justify-center rounded-full bg-[var(--lv-minimal-accent)] text-xs font-bold text-white">

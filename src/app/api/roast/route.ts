@@ -43,7 +43,11 @@ import {
   mergeLegalComplianceWithSignals,
 } from "@/lib/legal-html-signals";
 import { syncOverallScoreWithRadarPayload } from "@/lib/site-score";
+import { ensureUserProfileForUid } from "@/lib/ensure-user-profile-server";
 import { recordAuditLogEntry } from "@/lib/audit-log-server";
+import { recordAuditFailure } from "@/lib/audit-failure-log";
+import { CaptureBlockedError } from "@/lib/capture-page-health";
+import { applyInsecureHttpUrlAuditEnhancement } from "@/lib/http-trust-audit";
 
 /** Hard minimum for DIAGNOSTIC segment (compileRoast, V1 + V2). Models often land 165–175w; 180 was brittle. */
 const MIN_DIAGNOSTIC_WORDS = 160;
@@ -1637,6 +1641,8 @@ const logRoastTiming =
 export async function POST(request: NextRequest) {
   let chargeUid: string | null = null;
   let chargeCost = 0;
+  let roastLogUrl = "";
+  let roastLogDevice: "desktop" | "mobile" = "desktop";
 
   try {
     const body = await request.json();
@@ -1658,6 +1664,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    roastLogUrl = url.trim().slice(0, 2000);
+    roastLogDevice = device === "mobile" ? "mobile" : "desktop";
+
     const wall = Date.now();
     const idToken =
       typeof body.idToken === "string" && body.idToken.trim() ? body.idToken.trim() : "";
@@ -1671,6 +1680,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { error: "Unauthorized", details: "Invalid or expired session token" },
           { status: 401 }
+        );
+      }
+      try {
+        await ensureUserProfileForUid(chargeUid);
+      } catch (ensureErr) {
+        console.error("[roast] ensureUserProfileForUid", ensureErr);
+        return NextResponse.json(
+          {
+            error: "Could not prepare account",
+            details:
+              ensureErr instanceof Error
+                ? ensureErr.message
+                : "Server could not create or verify your user profile in Firestore.",
+          },
+          { status: 503 }
         );
       }
       chargeCost = roastGenerationCreditCost();
@@ -1894,6 +1918,8 @@ export async function POST(request: NextRequest) {
     (result as { scrollEffectiveness?: typeof scrollEffectiveness }).scrollEffectiveness =
       scrollEffectiveness;
 
+    applyInsecureHttpUrlAuditEnhancement(result as Record<string, unknown>, url);
+
     if (screenshots[0]) {
       result.heroScreenshot = screenshots[0];
     }
@@ -1962,6 +1988,28 @@ export async function POST(request: NextRequest) {
       await refundRoastCredits(chargeUid, chargeCost).catch(() => {
         /* best-effort refund */
       });
+    }
+    if (chargeUid && roastLogUrl) {
+      const blocked = error instanceof CaptureBlockedError;
+      void recordAuditFailure({
+        userId: chargeUid,
+        auditedUrl: roastLogUrl,
+        device: roastLogDevice,
+        httpStatus: blocked ? 422 : 500,
+        code: blocked ? String(error.code) : undefined,
+        message: safeErrorMessage(error),
+      });
+    }
+    if (error instanceof CaptureBlockedError) {
+      console.warn(`[roast] capture blocked: ${error.code} ${error.message}`);
+      return NextResponse.json(
+        {
+          error: "Page could not be audited",
+          details: error.message,
+          code: error.code,
+        },
+        { status: 422 }
+      );
     }
     console.error(`[ERROR] Roast API failed: ${safeErrorMessage(error)}`);
     return NextResponse.json(

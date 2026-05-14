@@ -37,6 +37,8 @@ type SampleReportPreviewProps = {
   browserTitle?: string;
   showBadges?: boolean;
   scoreTitles?: boolean;
+  /** When false, hides the radar chart below Site Score tiles (marketing previews only). Default true. */
+  showRadarPreview?: boolean;
 };
 
 export function SampleReportPreview({
@@ -51,6 +53,7 @@ export function SampleReportPreview({
   browserTitle = "siteroast_mar26",
   showBadges = true,
   scoreTitles = true,
+  showRadarPreview = true,
 }: SampleReportPreviewProps) {
   const previewInsider = getIndustryInsiderPoints(industryKey);
 
@@ -155,7 +158,7 @@ export function SampleReportPreview({
                 key={label}
                 title={scoreTitles ? RADAR_AXIS_EXPLANATIONS[label as RadarAxisLabel] : undefined}
                 className={cn(
-                  "flex min-h-[6.75rem] flex-col justify-center rounded-lg border border-border-muted bg-surface-2/30 px-3 py-4 text-center sm:min-h-[7.25rem]",
+                  "flex min-h-[6rem] flex-col justify-center rounded-lg border border-border-muted bg-surface-2/30 px-3 py-3 text-center sm:min-h-[6.25rem]",
                   scoreTileClassName,
                 )}
               >
@@ -174,9 +177,18 @@ export function SampleReportPreview({
               </div>
             ))}
           </div>
-          <div className={cn("mt-3 w-full min-w-0", radarClassName)}>
-            <RoastRadar radarMetrics={SAMPLE_RADAR_METRICS} />
-          </div>
+          {showRadarPreview ? (
+            <div
+              className={cn(
+                "mt-3 w-full min-w-0 rounded-lg border border-border-muted bg-surface-2/30 p-3 md:p-4",
+                radarClassName,
+              )}
+            >
+              <div className="h-[185px] w-full min-w-0 md:h-[169px]">
+                <RoastRadar radarMetrics={SAMPLE_RADAR_METRICS} frameless />
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

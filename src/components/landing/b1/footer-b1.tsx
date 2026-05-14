@@ -8,7 +8,7 @@ export function FooterB1() {
   return (
     <footer className="border-t border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-1)] px-4 py-16 md:px-8">
       <div className="container mx-auto max-w-6xl space-y-10">
-        <div className="flex flex-col items-center gap-6 rounded-3xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] px-6 py-10 text-center shadow-surface-xs md:px-12">
+        <div className="flex flex-col items-center gap-6 rounded-xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] px-6 py-10 text-center md:px-12">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-[var(--lv-minimal-text)] md:text-3xl">
               Ready to stop leaking conversions?
@@ -20,7 +20,7 @@ export function FooterB1() {
           <Button
             type="button"
             size="lg"
-            className="rounded-2xl px-10 font-semibold"
+            className="rounded-xl px-10 font-semibold"
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
           >
             Back to top

@@ -1,8 +1,9 @@
 import chromium from "@sparticuz/chromium";
-import type { Browser } from "puppeteer-core";
+import type { Browser, HTTPResponse } from "puppeteer-core";
 import { resolvePuppeteerLaunchExecutablePath } from "@/lib/chromium-executable";
 import { shouldUseBundledChromium } from "@/lib/should-use-bundled-chromium";
 import { getPuppeteerWithStealth } from "./screenshot";
+import { assertCapturedPageLoadsRealSite, CaptureBlockedError } from "@/lib/capture-page-health";
 
 /**
  * Exact 1:1 migration from main.py capture_screenshot_from_url function (lines 1575-2013)
@@ -161,13 +162,14 @@ export async function captureScreenshotFromUrl(
       const waitStrategy = waitStrategies[Math.min(attempt, waitStrategies.length - 1)];
 
       let xRobotsFromResponse: string | undefined;
+      let navigationResponse: HTTPResponse | null = null;
       try {
-        const navResponse = await page.goto(normalizedUrl, {
+        navigationResponse = (await page.goto(normalizedUrl, {
           waitUntil: waitStrategy as any,
           timeout: 60000,
           referer: "https://www.google.com/",
-        });
-        const xr = navResponse?.headers()?.["x-robots-tag"];
+        })) as HTTPResponse | null;
+        const xr = navigationResponse?.headers()?.["x-robots-tag"];
         if (typeof xr === "string" && xr.trim()) {
           xRobotsFromResponse = xr.trim();
         }
@@ -201,6 +203,8 @@ export async function captureScreenshotFromUrl(
       // CRITICAL: Wait 3 seconds for firewall/security analysis (exact from Python line 1833-1835)
       console.log("[DEBUG] Waiting 3 seconds for firewall analysis...");
       await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      await assertCapturedPageLoadsRealSite(page, navigationResponse, normalizedUrl);
 
       // Human-like mouse movement (exact from Python lines 1837-1848)
       try {
@@ -316,6 +320,14 @@ export async function captureScreenshotFromUrl(
           : {}),
       };
     } catch (e: any) {
+      if (e instanceof CaptureBlockedError) {
+        if (browser) {
+          try {
+            await browser.close();
+          } catch {}
+        }
+        throw e;
+      }
       const errorMsg = String(e).toLowerCase();
       const isNetworkError =
         errorMsg.includes("http2") ||

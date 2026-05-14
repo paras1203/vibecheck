@@ -21,11 +21,12 @@ import {
   signInWithEmailAndPassword,
   updateProfile,
   sendPasswordResetEmail,
+  type ActionCodeSettings,
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
 import {
   getFirebaseAuth,
   getFirestoreClient,
@@ -34,6 +35,8 @@ import {
 } from "@/lib/firebase";
 import { mergeLegacyRoastHistoryIntoUser } from "@/lib/roast-history";
 import { coerceUserCreditsFromDocument, newUserCreditsDefault } from "@/lib/credits-config";
+import { parseOnboardingCompletedFromFirestore } from "@/lib/onboarding-firestore";
+import { isMasterAdminEmail } from "@/lib/admin";
 
 export interface User {
   uid: string;
@@ -44,6 +47,13 @@ export interface User {
   photoURL?: string;
   /** False when Firestore profile could not be loaded; do not trust `credits` for billing UI. */
   firestoreSynced: boolean;
+  onboardingCompleted: boolean;
+  onboardingRole?: string;
+  onboardingGoal?: string;
+  /** Shown once on home/dashboard; cleared when user dismisses. */
+  pendingHomeMessage?: string;
+  /** Anonymous checkout: receipt email captured before Dodo (`guest-checkout-contact`). */
+  guestCheckoutEmail?: string;
 }
 
 interface AuthContextType {
@@ -59,16 +69,28 @@ interface AuthContextType {
   handleEmailSignIn: (email: string, password: string) => Promise<void>;
   handleEmailSignUp: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateCredits: (newCredits: number) => void;
+  updateCredits: (newCredits: number, options?: { fromServer?: boolean }) => void;
   updateCreditsAndPlan: (newCredits: number, plan: User["plan"]) => void;
   updateDisplayName: (name: string) => Promise<void>;
   sendPasswordResetToEmail: (email: string) => Promise<void>;
   sendEmailSignInLink: (email: string, nextPath?: string) => Promise<void>;
   completeEmailLinkSignInIfPresent: (href: string) => Promise<boolean>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<{ firestoreSynced: boolean; credits: number }>;
+  dismissPendingHomeMessage: () => Promise<void>;
+  completeProductOnboarding: (opts: {
+    onboardingRole: string;
+    onboardingGoal: string;
+    displayName?: string;
+  }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function parsePendingHomeMessage(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const t = raw.trim();
+  return t.length ? t : undefined;
+}
 
 function mapAuthError(error: unknown): Error {
   const code =
@@ -133,25 +155,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 ? (rawPlan.toLowerCase() as User["plan"])
                 : "free")
             : "free";
+        const onboardingCompleted = parseOnboardingCompletedFromFirestore(
+          userData.onboardingCompleted,
+        );
+        const roleRaw = userData.onboardingRole;
+        const goalRaw = userData.onboardingGoal;
+        const guestMail =
+          typeof userData.guestCheckoutEmail === "string" ? userData.guestCheckoutEmail.trim() : "";
+        const credits = coerceUserCreditsFromDocument(userData.credits);
         setUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
-          credits: coerceUserCreditsFromDocument(userData.credits),
+          credits,
           plan: normalizedPlan,
           displayName: firebaseUser.displayName || userData.displayName,
           photoURL: firebaseUser.photoURL || userData.photoURL,
           firestoreSynced: true,
+          onboardingCompleted,
+          onboardingRole: typeof roleRaw === "string" ? roleRaw : undefined,
+          onboardingGoal: typeof goalRaw === "string" ? goalRaw : undefined,
+          pendingHomeMessage: parsePendingHomeMessage(userData.pendingHomeMessage),
+          ...(guestMail ? { guestCheckoutEmail: guestMail } : {}),
         });
+        mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
+        setIsSyncing(false);
+        setLoading(false);
+        return { firestoreSynced: true as const, credits };
       } else {
         const starter = newUserCreditsDefault();
+        const email = firebaseUser.email || "";
+        const master = isMasterAdminEmail(email);
+        const plan: User["plan"] = master ? "pro" : "free";
         const newUser: User = {
           uid: firebaseUser.uid,
-          email: firebaseUser.email || "",
+          email,
           credits: starter,
-          plan: "free",
+          plan,
           displayName: firebaseUser.displayName || undefined,
           photoURL: firebaseUser.photoURL || undefined,
           firestoreSynced: true,
+          onboardingCompleted: false,
         };
 
         await setDoc(userRef, {
@@ -161,32 +204,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           plan: newUser.plan,
           displayName: newUser.displayName,
           photoURL: newUser.photoURL,
+          onboardingCompleted: false,
+          ...(master ? { isMasterUser: true } : {}),
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
 
         setUser(newUser);
+        mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
+        setIsSyncing(false);
+        setLoading(false);
+        return { firestoreSynced: true as const, credits: starter };
       }
-      mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
-      setIsSyncing(false);
-      setLoading(false);
     } catch (error) {
       console.error("Error syncing user with Firestore:", error);
+      let resolvedCredits = 0;
       setUser((prev) => {
         const same = prev?.uid === firebaseUser.uid;
+        resolvedCredits = same && prev ? prev.credits : 0;
         return {
           uid: firebaseUser.uid,
           email: firebaseUser.email || "",
-          credits: same && prev ? prev.credits : 0,
+          credits: resolvedCredits,
           plan: same && prev ? prev.plan : "free",
           displayName: firebaseUser.displayName || prev?.displayName,
           photoURL: firebaseUser.photoURL || prev?.photoURL,
           firestoreSynced: false,
+          onboardingCompleted: false,
         };
       });
       mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
       setIsSyncing(false);
       setLoading(false);
+      return { firestoreSynced: false as const, credits: resolvedCredits };
     }
   }, []);
 
@@ -247,6 +297,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             displayName: fbUser.displayName || prev?.displayName,
             photoURL: fbUser.photoURL || prev?.photoURL,
             firestoreSynced: false,
+            onboardingCompleted: prev?.uid === fbUser.uid ? prev.onboardingCompleted : false,
+            pendingHomeMessage: prev?.uid === fbUser.uid ? prev.pendingHomeMessage : undefined,
           }));
           setLoading(false);
           setIsSyncing(true);
@@ -397,12 +449,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null);
   };
 
-  const updateCredits = (newCredits: number) => {
+  const updateCredits = (newCredits: number, options?: { fromServer?: boolean }) => {
     if (user) {
+      const fromServer = options?.fromServer ?? false;
       setUser({
         ...user,
         credits: newCredits,
-        firestoreSynced: true,
+        firestoreSynced: fromServer ? true : user.firestoreSynced,
       });
     }
   };
@@ -436,14 +489,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!trimmed) {
       throw new Error("Email is required.");
     }
-    await sendPasswordResetEmail(getFirebaseAuth(), trimmed);
+    if (typeof window === "undefined") {
+      throw new Error("Password reset can only be requested from the browser.");
+    }
+    const actionCodeSettings: ActionCodeSettings = {
+      url: `${window.location.origin}/login`,
+      handleCodeInApp: false,
+    };
+    await sendPasswordResetEmail(getFirebaseAuth(), trimmed, actionCodeSettings);
   };
 
   const refreshProfile = useCallback(async () => {
     const fb = getFirebaseAuth().currentUser;
-    if (!fb) return;
-    await syncUserWithFirestore(fb);
+    if (!fb) return { firestoreSynced: false as const, credits: 0 };
+    return syncUserWithFirestore(fb);
   }, [syncUserWithFirestore]);
+
+  const dismissPendingHomeMessage = useCallback(async () => {
+    const fb = getFirebaseAuth().currentUser;
+    if (!fb || !user?.uid) return;
+    try {
+      const userRef = doc(getFirestoreClient(), "users", fb.uid);
+      await updateDoc(userRef, {
+        pendingHomeMessage: deleteField(),
+        updatedAt: serverTimestamp(),
+      });
+      setUser((u) => (u ? { ...u, pendingHomeMessage: undefined } : u));
+    } catch (e) {
+      console.error("dismissPendingHomeMessage:", e);
+    }
+  }, [user?.uid]);
+
+  const completeProductOnboarding = useCallback(
+    async (opts: {
+      onboardingRole: string;
+      onboardingGoal: string;
+      displayName?: string;
+    }) => {
+      const fb = getFirebaseAuth().currentUser;
+      if (!fb) {
+        throw new Error("Not signed in.");
+      }
+      const token = await fb.getIdToken();
+      const res = await fetch("/api/user/complete-onboarding", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          displayName: opts.displayName,
+          onboardingRole: opts.onboardingRole,
+          onboardingGoal: opts.onboardingGoal,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; details?: string };
+      if (!res.ok) {
+        throw new Error(data.details || data.error || "Could not save onboarding");
+      }
+      await syncUserWithFirestore(fb);
+    },
+    [syncUserWithFirestore],
+  );
 
   return (
     <AuthContext.Provider
@@ -465,6 +573,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         sendEmailSignInLink,
         completeEmailLinkSignInIfPresent,
         refreshProfile,
+        dismissPendingHomeMessage,
+        completeProductOnboarding,
       }}
     >
       {children}

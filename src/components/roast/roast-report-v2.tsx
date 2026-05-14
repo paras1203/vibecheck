@@ -66,6 +66,11 @@ import {
 import { parseExecutiveSummaryText } from "@/lib/report-v2-executive";
 import { detailedAuditToDisplayRows } from "@/lib/report-v2-pillar-audit";
 import {
+  auditImpactTextClassName,
+  auditStatusTextClassName,
+  formatAuditImpactLabel,
+} from "@/lib/audit-table-cells";
+import {
   buildRevenueLeakEstimate,
   DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
   fallbackInsightLayers,
@@ -757,7 +762,14 @@ export function RoastReportV2({
           <p className="text-sm text-muted-foreground">No backlog items resolved for this roast.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="table-fixed w-full min-w-[640px] text-sm">
+              <colgroup>
+                <col className="w-[5%]" />
+                <col className="w-[18%]" />
+                <col className="w-[27%]" />
+                <col className="w-[20%]" />
+                <col className="w-[30%]" />
+              </colgroup>
               <thead className="border-b border-border bg-muted/40 text-left text-caption text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 font-medium">#</th>
@@ -769,12 +781,12 @@ export function RoastReportV2({
               </thead>
               <tbody>
                 {experiments.map((it: ExperimentBacklogItem, i: number) => (
-                  <tr key={it.testName} className="border-b border-border-muted last:border-0">
+                  <tr key={it.testName} className="border-b border-border-muted align-top last:border-0">
                     <td className="px-3 py-2 font-mono tabular-nums">{i + 1}</td>
-                    <td className="px-3 py-2 font-medium">{it.testName}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{it.hypothesis}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{it.primaryMetric}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{it.variantDescription}</td>
+                    <td className="break-words px-3 py-2 font-medium">{it.testName}</td>
+                    <td className="break-words px-3 py-2 text-muted-foreground">{it.hypothesis}</td>
+                    <td className="break-words px-3 py-2 text-muted-foreground">{it.primaryMetric}</td>
+                    <td className="break-words px-3 py-2 text-muted-foreground">{it.variantDescription}</td>
                   </tr>
                 ))}
               </tbody>
@@ -794,8 +806,10 @@ export function RoastReportV2({
             </CardTitle>
           </CardHeader>
           <CardContent className="flex justify-center py-4">
-            <div className="w-full max-w-[280px]">
-              <RoastRadar radarMetrics={radarScores} />
+            <div className="w-full max-w-[308px] rounded-lg border border-border-muted bg-surface-2/30 p-3 md:p-4">
+              <div className="h-[264px] w-full min-w-0">
+                <RoastRadar radarMetrics={radarScores} frameless />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -828,26 +842,40 @@ export function RoastReportV2({
                   <CardTitle className="text-base">{title}</CardTitle>
                 </CardHeader>
                 <CardContent className="overflow-x-auto">
-                  <table className="w-full min-w-[720px] text-xs">
+                  <table className="table-fixed w-full min-w-[720px] text-xs">
+                    <colgroup>
+                      <col className="w-[10%]" />
+                      <col className="w-[10%]" />
+                      <col className="w-[5%]" />
+                      <col className="w-[25%]" />
+                      <col className="w-[25%]" />
+                      <col className="w-[25%]" />
+                    </colgroup>
                     <thead className="border-b border-border text-left text-muted-foreground">
                       <tr>
-                        <th className="py-2 pr-2 font-medium">Element</th>
-                        <th className="py-2 pr-2 font-medium">Status</th>
-                        <th className="py-2 pr-2 font-medium">Impact</th>
-                        <th className="py-2 pr-2 font-medium">Working</th>
-                        <th className="py-2 pr-2 font-medium">Not working</th>
-                        <th className="py-2 font-medium">Fix</th>
+                        <th className="py-2 pr-2 align-bottom font-medium">Element</th>
+                        <th className="py-2 pr-2 align-bottom font-medium">Status</th>
+                        <th className="py-2 pr-2 align-bottom font-medium">Impact</th>
+                        <th className="py-2 pr-2 align-bottom font-medium">Working</th>
+                        <th className="py-2 pr-2 align-bottom font-medium">Not working</th>
+                        <th className="py-2 align-bottom font-medium">Fix</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((r, i) => (
-                        <tr key={`${r.element}-${i}`} className="border-b border-border-muted/80">
-                          <td className="py-2 pr-2 font-medium">{r.element}</td>
-                          <td className="py-2 pr-2">{r.status}</td>
-                          <td className="py-2 pr-2 font-mono">{r.impact}</td>
-                          <td className="py-2 pr-2 text-muted-foreground">{r.working}</td>
-                          <td className="py-2 pr-2 text-muted-foreground">{r.notWorking}</td>
-                          <td className="py-2 text-muted-foreground">{r.fix}</td>
+                        <tr key={`${r.element}-${i}`} className="border-b border-border-muted/80 align-top">
+                          <td className="break-words py-2 pr-2 font-medium">{r.element}</td>
+                          <td className="break-words py-2 pr-2">
+                            <span className={auditStatusTextClassName(r.status)}>{r.status}</span>
+                          </td>
+                          <td className="break-words py-2 pr-2">
+                            <span className={auditImpactTextClassName(r.impact)}>
+                              {formatAuditImpactLabel(r.impact)}
+                            </span>
+                          </td>
+                          <td className="break-words py-2 pr-2 text-muted-foreground">{r.working}</td>
+                          <td className="break-words py-2 pr-2 text-muted-foreground">{r.notWorking}</td>
+                          <td className="break-words py-2 text-muted-foreground">{r.fix}</td>
                         </tr>
                       ))}
                     </tbody>

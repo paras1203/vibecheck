@@ -19,17 +19,12 @@ interface AuthRequiredDialogProps {
   onGoogleAuth: () => Promise<void>;
   onEmailSignIn: (email: string, password: string) => Promise<void>;
   onEmailSignUp: (email: string, password: string) => Promise<void>;
-  onSendEmailLink?: (email: string) => Promise<void>;
   loading?: boolean;
   title?: string;
   description?: string;
-  footerNote?: string;
   allowDismiss?: boolean;
 }
 
-const DEFAULT_TITLE = "Sign in to continue";
-const DEFAULT_DESCRIPTION = "Exports and saved history are available with an account.";
-const DEFAULT_FOOTER = "By continuing, you agree to our use of authentication for your workspace.";
 
 export function AuthRequiredDialog({
   open,
@@ -38,20 +33,15 @@ export function AuthRequiredDialog({
   onGoogleAuth,
   onEmailSignIn,
   onEmailSignUp,
-  onSendEmailLink,
   loading = false,
-  title = DEFAULT_TITLE,
-  description = DEFAULT_DESCRIPTION,
-  footerNote = DEFAULT_FOOTER,
+  title = "Sign in to continue",
+  description = "Exports and saved history are available with an account.",
   allowDismiss = false,
 }: AuthRequiredDialogProps) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
-  const [linkBusy, setLinkBusy] = useState(false);
-  const [linkSent, setLinkSent] = useState(false);
-
   const handleGoogle = async () => {
     setLocalError(null);
     try {
@@ -60,25 +50,6 @@ export function AuthRequiredDialog({
     } catch (error) {
       console.error("Authentication failed:", error);
       setLocalError(error instanceof Error ? error.message : "Google sign-in failed");
-    }
-  };
-
-  const handleEmailLink = async () => {
-    if (!onSendEmailLink) return;
-    setLocalError(null);
-    setLinkSent(false);
-    if (!email.trim()) {
-      setLocalError("Enter your email to receive a sign-in link.");
-      return;
-    }
-    setLinkBusy(true);
-    try {
-      await onSendEmailLink(email.trim());
-      setLinkSent(true);
-    } catch (error) {
-      setLocalError(error instanceof Error ? error.message : "Could not send sign-in link");
-    } finally {
-      setLinkBusy(false);
     }
   };
 
@@ -130,7 +101,7 @@ export function AuthRequiredDialog({
           <Button
             onClick={handleGoogle}
             disabled={loading}
-            className="flex h-12 w-full items-center justify-center gap-2 text-base font-semibold"
+            className="flex h-9 w-full items-center justify-center gap-2 text-sm font-semibold sm:text-base"
           >
             {loading ? (
               <>
@@ -171,7 +142,7 @@ export function AuthRequiredDialog({
               type="button"
               variant={mode === "signin" ? "default" : "outline"}
               size="sm"
-              className="flex-1"
+              className="h-9 flex-1 text-sm"
               onClick={() => setMode("signin")}
             >
               Log in
@@ -180,14 +151,14 @@ export function AuthRequiredDialog({
               type="button"
               variant={mode === "signup" ? "default" : "outline"}
               size="sm"
-              className="flex-1"
+              className="h-9 flex-1 text-sm"
               onClick={() => setMode("signup")}
             >
               Sign up
             </Button>
           </div>
 
-          <div className="space-y-3">
+          <div className="flex min-h-[220px] flex-col gap-3">
             <div className="space-y-2">
               <Label htmlFor="auth-email">Email</Label>
               <Input
@@ -227,34 +198,11 @@ export function AuthRequiredDialog({
                 "Log in with email"
               )}
             </Button>
-            {mode === "signin" && onSendEmailLink ? (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleEmailLink}
-                disabled={loading || linkBusy}
-                className="h-10 w-full text-sm"
-              >
-                {linkBusy ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  "Email me a sign-in link"
-                )}
-              </Button>
-            ) : null}
           </div>
-
-          {linkSent && (
-            <p className="text-center text-sm text-muted-foreground">
-              Check your email for the link. Open it on this device if you started here.
-            </p>
-          )}
 
           {localError && (
             <p className="text-center text-sm text-destructive">{localError}</p>
           )}
-
-          <p className="text-center text-xs text-muted-foreground">{footerNote}</p>
         </div>
       </DialogContent>
     </Dialog>

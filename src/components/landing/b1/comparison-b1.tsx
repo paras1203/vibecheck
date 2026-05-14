@@ -24,8 +24,8 @@ export function ComparisonB1({ roastForm }: { roastForm: LandingRoastFormProps }
           Same rigor as a senior review — without the calendar ping-pong.
         </p>
         <div className="grid items-center gap-12 md:grid-cols-2">
-          <div className="overflow-hidden rounded-3xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] shadow-surface-sm">
-            <div className="border-b border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-2)] px-4 py-2 text-xs font-medium text-muted-foreground">
+          <div className="overflow-hidden rounded-xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-2)] shadow-surface-xs">
+            <div className="border-b border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] px-4 py-2 text-xs font-medium text-muted-foreground">
               Output timeline
             </div>
             <div className="grid grid-cols-2 gap-0 divide-x divide-[var(--lv-minimal-border)] border-b border-[var(--lv-minimal-border)]">
@@ -38,7 +38,7 @@ export function ComparisonB1({ roastForm }: { roastForm: LandingRoastFormProps }
                 </p>
                 <p className="text-xs text-muted-foreground">Typical turnaround</p>
               </div>
-              <div className="bg-[var(--lv-minimal-accent)]/8 p-4">
+              <div className="bg-[var(--lv-minimal-accent)]/10 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[var(--lv-minimal-accent)]">
                   {BRAND_NAME}
                 </p>
@@ -85,13 +85,13 @@ export function ComparisonB1({ roastForm }: { roastForm: LandingRoastFormProps }
                     if (e.key === "Enter" && !loading) onRoast();
                   }}
                   disabled={loading}
-                  className="h-12 flex-1 rounded-2xl border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] sm:h-14"
+                  className="h-12 flex-1 rounded-xl border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] sm:h-14"
                 />
                 <Button
                   onClick={onRoast}
                   disabled={loading}
                   size="lg"
-                  className="h-12 shrink-0 rounded-2xl px-8 font-semibold sm:h-14"
+                  className="h-12 shrink-0 rounded-xl px-8 font-semibold sm:h-14"
                 >
                   {loading ? "Roasting..." : "Roast My Site"}
                 </Button>

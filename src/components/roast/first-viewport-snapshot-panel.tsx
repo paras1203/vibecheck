@@ -38,17 +38,17 @@ export function FirstViewportSnapshotPanel({ heroBase64, siteLabel }: Props) {
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         <div className="flex w-full min-w-0 justify-center">
-          <div className="relative isolate w-full min-h-[12rem] min-w-0 max-w-full overflow-x-auto overflow-y-visible rounded-lg border border-border bg-[#0f172a]">
+          <div className="relative isolate mx-auto max-w-[70%] min-h-[8.4rem] w-full min-w-0 overflow-hidden rounded-lg border border-border bg-[#0f172a]">
             {dataUrl && !imageFailed ? (
               <img
                 src={dataUrl}
                 alt=""
-                className="relative z-0 mx-auto block h-auto max-h-none min-w-0 w-auto max-w-none object-contain object-top"
+                className="relative z-0 mx-auto block max-h-[10.5rem] w-full object-contain object-top sm:max-h-[11rem]"
                 decoding="async"
                 onError={onImgError}
               />
             ) : dataUrl && imageFailed ? (
-              <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+              <div className="flex min-h-[8.4rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   Screenshot could not be displayed. Re-run the roast to refresh the capture.
                 </p>
@@ -57,7 +57,7 @@ export function FirstViewportSnapshotPanel({ heroBase64, siteLabel }: Props) {
                 ) : null}
               </div>
             ) : invalidHero ? (
-              <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+              <div className="flex min-h-[8.4rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   Screenshot data is unreadable or incomplete. Try a fresh roast—the capture may have been clipped or corrupted in storage.
                 </p>
@@ -66,7 +66,7 @@ export function FirstViewportSnapshotPanel({ heroBase64, siteLabel }: Props) {
                 ) : null}
               </div>
             ) : (
-              <div className="flex min-h-[12rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+              <div className="flex min-h-[8.4rem] flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                 <p className="text-sm text-muted-foreground">
                   No screenshot stored for this report. Run a new roast to attach the first-viewport capture.
                 </p>

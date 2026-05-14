@@ -7,10 +7,12 @@ import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { mergePlanAfterPurchase } from "@/lib/plan-merge";
 import { newUserCreditsDefault } from "@/lib/credits-config";
 import { coerceUserCreditsFromDocument } from "@/lib/credits-config";
-import { requireFirebaseBearerUid } from "@/lib/request-auth-firebase";
+import { requireFirebaseApiUser } from "@/lib/require-firebase-api-auth";
+import { firebaseBearerUnauthorizedResponse } from "@/lib/request-auth-firebase";
 
 const bodySchema = z.object({
   paymentId: z.string().min(3),
+  idToken: z.string().min(20).optional(),
 });
 
 function normalizePlanStored(p: string | undefined): "free" | "pro" | "agency" {
@@ -20,19 +22,50 @@ function normalizePlanStored(p: string | undefined): "free" | "pro" | "agency" {
 }
 
 export async function POST(request: NextRequest) {
-  let uid: string;
+  let raw: unknown;
   try {
-    uid = await requireFirebaseBearerUid(request);
+    raw = await request.json();
   } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
+  const parsed = bodySchema.safeParse(raw);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Invalid request body", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+  const { paymentId, idToken: bodyIdToken } = parsed.data;
+
+  const auth = await requireFirebaseApiUser(request, { fallbackIdToken: bodyIdToken });
+  if (!auth.ok) return auth.response;
+  const { uid } = auth;
 
   try {
-    const body = await request.json();
-    const { paymentId } = bodySchema.parse(body);
-
     const client = getDodoPaymentsClient();
     const payment = await client.payments.retrieve(paymentId);
+
+    // #region agent log
+    const pm = payment.metadata ?? {};
+    fetch("http://127.0.0.1:7848/ingest/82f5425f-b2b1-4559-a030-418ece2f80c9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b9a3d6" },
+      body: JSON.stringify({
+        sessionId: "b9a3d6",
+        runId: "pre-fix",
+        hypothesisId: "H4",
+        location: "verify/route.ts:after-retrieve",
+        message: "dodo payment retrieved",
+        data: {
+          status: payment.status ?? "unknown",
+          metaHasFirebaseUid: typeof pm.firebase_uid === "string",
+          metaHasVcPlan: typeof pm.vc_plan === "string",
+          cartLen: Array.isArray(payment.product_cart) ? payment.product_cart.length : -1,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
     const statusOk = payment.status === "succeeded";
     if (!statusOk) {
@@ -76,6 +109,7 @@ export async function POST(request: NextRequest) {
         {
           credits: newUserCreditsDefault(),
           plan: "free",
+          onboardingCompleted: false,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         },
@@ -153,6 +187,24 @@ export async function POST(request: NextRequest) {
       );
     }
     console.error("[dodo] verify:", error);
+    // #region agent log
+    fetch("http://127.0.0.1:7848/ingest/82f5425f-b2b1-4559-a030-418ece2f80c9", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b9a3d6" },
+      body: JSON.stringify({
+        sessionId: "b9a3d6",
+        runId: "pre-fix",
+        hypothesisId: "H4",
+        location: "verify/route.ts:catch",
+        message: "verify error",
+        data: {
+          errSlice:
+            error instanceof Error ? error.message.slice(0, 240) : String(error).slice(0, 240),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     return NextResponse.json(
       {
         error: "Payment verification failed",

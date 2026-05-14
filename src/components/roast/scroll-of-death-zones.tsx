@@ -9,19 +9,20 @@ export function ScrollIssueFixLine({ line }: { line: string }) {
   const arrow = SCROLL_BULLET_ARROW;
   const j = line.indexOf(arrow);
   const box =
-    "min-w-0 overflow-visible rounded-md border border-border-muted bg-muted/20 px-2.5 py-2 text-xs leading-snug [overflow-wrap:anywhere] break-words text-foreground";
+    "min-w-0 overflow-visible rounded-lg border border-border-muted bg-muted/20 px-3 py-2.5 [overflow-wrap:anywhere] break-words";
   if (j === -1) {
-    return <div className={box}>{line}</div>;
+    return (
+      <div className={box}>
+        <p className="text-sm font-medium text-foreground">{line}</p>
+      </div>
+    );
   }
   return (
     <div className={box}>
-      <p className="min-w-0">
-        <span className="text-muted-foreground">Issue </span>
-        <span>{line.slice(0, j)}</span>
-      </p>
-      <p className="mt-1.5 min-w-0 border-t border-border-muted/80 pt-1.5">
-        <span className="text-muted-foreground">Fix </span>
-        <span>{line.slice(j + arrow.length)}</span>
+      <p className="min-w-0 text-sm font-medium leading-snug text-foreground">{line.slice(0, j)}</p>
+      <p className="mt-1.5 min-w-0 text-xs leading-relaxed text-muted-foreground">
+        <span className="font-medium text-foreground/90">Fix: </span>
+        {line.slice(j + arrow.length)}
       </p>
     </div>
   );

@@ -32,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} min-h-screen bg-background font-sans antialiased text-foreground`}
+        className={`${inter.variable} ${jetbrainsMono.variable} min-h-screen min-w-0 bg-background font-sans antialiased text-foreground overflow-x-clip`}
       >
         <ThemeProvider defaultTheme="dark">
           <SimulationProvider>

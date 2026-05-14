@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { UrlInputForm } from "@/components/landing/shared/url-input-form";
 import type { LandingRoastFormProps } from "@/components/landing/hero-section";
-import { Sparkles } from "lucide-react";
 
 export function HeroC2({ roastForm }: { roastForm: LandingRoastFormProps }) {
   return (
@@ -22,10 +21,6 @@ export function HeroC2({ roastForm }: { roastForm: LandingRoastFormProps }) {
           today.
         </p>
         <UrlInputForm {...roastForm} variant="c2" secondaryHref="#preview" />
-        <div className="flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground">
-          <Sparkles className="size-3.5 stroke-[1.5] text-[var(--lv-c2-accent)]" aria-hidden />
-          <span>Powered by Gemini</span>
-        </div>
         <p className="text-xs text-muted-foreground">
           <Link href="/" className="underline-offset-4 hover:text-[var(--lv-c2-text)] hover:underline">
             Default landing

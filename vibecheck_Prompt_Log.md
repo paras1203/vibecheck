@@ -1,3 +1,111 @@
+---
+
+## 2026-05-14 - Login page chrome + onboarding flow trim
+
+**Category:** Feature Request
+
+**Instruction:**
+> 1) Replace `http://localhost:3000/login` page layout and UI inline with `http://localhost:3000` — menu, page background, theme, etc.; login page was completely different than landing page.  
+> 2) User onboarding flow: Your details → Your goal → submit button (take user to landing page in logged-in state); remove page URL tile from sequence.
+
+**Confirmed:** [`login/page.tsx`](src/app/login/page.tsx), [`product-onboarding-screen.tsx`](src/components/onboarding/product-onboarding-screen.tsx), workflow logs updated.
+
+---
+
+## 2026-05-14 - Production on runway.app (Dodo live_mode)
+
+**Category:** Architecture
+
+**Instruction:**
+> Cancelled Google Cloud Run; app on runway.app; environment **live_mode**; update code/docs accordingly without breaking working behavior; provide deployment steps.
+
+**Confirmed:** `.env.example`, Dodo error copy, chromium comment, client-config comment, workflow logs updated.
+
+---
+
+## 2026-05-14 - Dodo payment fix (full flow, env, debug)
+
+**Category:** Feature Request / Core Logic
+
+**Instruction:**
+> Dodo payment process is broken after several attempts; reference https://docs.dodopayments.com/introduction; check step-by-step what is required for payment to work, what we already have, what is broken, fix it; inspect complete flow, `.env` variables, and process.
+
+**Confirmed:** Instrumentation added; awaiting runtime logs before code fix.
+
+---
+
+## 2026-05-14 - Landing, onboarding, billing, polish (full plan execution)
+
+**Category:** Feature Request / Architecture
+
+**Instruction:**
+> Implemented attached plan: delete-account dialog width/copy/case-insensitive confirmation; login navbar aligned with landing concept; onboarding funnel fix (`resolvePostLoginPath` checkout-only bypass, Firestore onboarding default, admin grandfather route); landing hero centering + hide sample link + Pro card primary hues; VariationSwitcher off public navbar, admin sidebar + `/dashboard/admin/visual-lander`; checkout anonymous sign-in + guest email API + create-session fallback email; billing paid toast for anonymous signup; roast cloud mirror for Pro/Agency/admin; recent reports merge + cloud payload fetch + share link; report page share toolbar + cloud sync effect; password reset ActionCodeSettings; founding/pricing checkout direct to `/checkout`.
+
+---
+
+## 2026-05-13 - GDPR/CCPA self-service account deletion
+
+**Category:** Feature Request / Architecture / Core Logic
+
+**Instruction:**
+> Ensure user flow login → app use → delete is legally coded and fully compliant to GDPR/CCPA rules; build the self-service flow (API + UI) with transparent disclosure of what is deleted vs retained (billing/legal), update privacy copy, clear local device caches, keep email as fallback.
+
+---
+
+## 2026-05-12 - Layout overflow, master admins, master analytics
+
+**Category:** Feature Request / Architecture
+
+**Instruction:**
+> (1) Fix UI stretched beyond viewport on localhost authenticated pages (e.g. Average score, URL box on home)—inspect and fix. (2) Master users: emails paraskumarvyas@gmail.com and connect@blenz.in become admin/master with Pro on signup; extend admin checks. (3) Master analytics: registrations, user types, audits/failures, revenue proxy, distinct URLs, hourly activity, tokens; promo pool for next N signups with home message; bonus credits to selected user with home message; per-user metrics when user selected.
+
+**Confirmed:** Implemented per plan; changelog entries appended.
+
+---
+
+## 2026-05-12 - Onboarding gate before first audit
+
+**Category:** Architecture / Feature Request
+
+**Instruction:**
+> Implement non-breaking onboarding gate: landing Roast → login (no audit); persist hero URL to onboarding; collect URL, role, goal (radios); on Run first audit check credits (no free audits UX copy); insufficient credits → blocked state + Buy credits → `/billing`; sufficient → existing overlay/report flow; Firestore `onboardingCompleted` + role/goal; grandfather missing `onboardingCompleted`; shared authenticated roast hook; login redirect merges `next` with onboarding; UK English copy; do not rewrite audit pipeline or credit debit server logic.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-11 - Hero input, radar, navbar, Apple light theme, Dodo 401
+
+**Category:** Feature Request
+
+**Instruction:**
+> Hero URL border/hue follows theme **primary** (light/dark); radar UI aligned with Site Score tiles and chart ~10% larger; hero **Roast** button **right of URL** field; navbar right spacing fixed so layout doesn’t invite horizontal scroll; **light theme** tuned to Apple.com-like neutrals, shadows, spacing, hues (primary unchanged); hero Roast button width matches **The AI consultant vs. the agency** block button; **Dodo payment 401** `{"error":"Unauthorized"}`—diagnose and fix, advise user on required setup.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-11 - Landing hero, sample preview, loader timing, report UI polish
+
+**Category:** Feature Request
+
+**Instruction:**
+> Hero URL box: purple hue around field, keep text centered; shorten hero Roast button width by ~70% (~30% width); move hero text up slightly (~10% less spacing/padding). Sample report: fit radar + tiles—resize radar container, remove outer radar rectangle (no double frame with ChartPanel). Light theme: set primary token to C2 roast button blue (`--lv-c2-accent`). Step timing: keep HUD viewport top-right (not trapped in overlay), show actual process/loader labels—not only `#`—plus eight phase rollups with optional per-step detail; goal is to see what dominates wall time (e.g. long waits). Implementation checklist: fix task column clipping/sizing. Detailed audit by pillar: Status and Impact without pill backgrounds—text colors only; Impact labels as Low/Medium/High not HI/MI/LI. Issues & fixes by scroll zone: typography/formatting aligned to SEO health “Issues & recommended fixes”. First viewport snapshot: ~30% smaller preview chrome, image contained to frame.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-11 - Landing parity, sample radar, checklist table, audit tables
+
+**Category:** Feature Request / Architecture
+
+**Instruction:**
+> Unify `/` light and dark to the same landing section flow (A1) with theme-driven styling only; tighten hero vs comparison control sizes; remove Gemini hero line; restore sample radar; workspace title primary color; constrain horizontal overflow; convert implementation checklist to a 3-column table; add Status/Impact color coding and fixed column widths on V2 pillar (and backlog) tables, with HTML export aligned where applicable.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
 
 ## 2026-05-11 - Billing & app shell responsive (Railway mobile)
 
@@ -5,6 +113,28 @@
 
 **Instruction:**
 > After Railway hosting, billing on mobile showed a thin content column (~30–40% width) with most of the viewport blank on the left; inspect device-wise optimisation for desktop, mobile, and tablets and fix layout.
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-11 - Blocked / unsafe URLs (no credit) + HTTP trust finding
+
+**Category:** Core Logic / Feature Request
+
+**Instruction:**
+> Any page that fails to load or shows browser warnings (dangerous/malicious/suspicious, deceptive, DNS, connection refused/unavailable, 404/5xx, parked, SSL interstitials, etc.) must abort the audit—user informed, no credits deducted. Today audits run on blocked sites and produce false reports; fix. If the URL uses `http://` only, include a security/TLS certificate unavailable finding in the audit and affect trust score (per user’s reference list of message types).
+
+**Confirmed:** Logged per prompt protocol.
+
+---
+
+## 2026-05-11 - Multi-surface UX sweep (landing, auth, roast HUD, credits)
+
+**Category:** Feature Request / Architecture
+
+**Instruction:**
+> Landing hero/url tweaks, sample report radar styling, comparison-B1 polish, SidebarProvider `min-w-0` overflow, roast report header/tabs overflow, teaser vertical rhythm; login + auth dialog cleanup; `RoastGenerationOverlay` viewport; `RoastAnalysisLoader` step timing HUD `fixed` top-right; `updateCredits(..., { fromServer: true })` after `/api/roast`; document Firestore credits paths in `docs/firestore-credits-audit.md`.
 
 **Confirmed:** Logged per prompt protocol.
 
@@ -141,6 +271,14 @@
 **Category:** Architecture / Feature Request
 **Instruction:**
 > Check PayPal docs (catalog products, checkout, subscriptions) and ensure the code is set perfectly for single payments.
+
+## 2026-05-13 - GDPR/CCPA self-service account deletion
+
+**Category:** Feature Request / Architecture / Core Logic
+**Instruction:**
+> Ensure user flow login → app use → delete is legally coded and fully compliant to GDPR/CCPA rules; build the self-service flow (API + UI) with transparent disclosure of what is deleted vs retained (billing/legal), update privacy copy, clear local device caches, keep email as fallback.
+
+---
 
 ## 2026-03-30 - Conversion analysis loader timing (20 steps)
 **Category:** Core Logic / UX
@@ -565,3 +703,16 @@
 
 **Constraint:** Confirmed this log entry was appended when completing this batch.
 
+## 2026-05-12 - package.json parse error + Dodo payment errors
+**Category:** Feature Request
+**Instruction:**
+> Fix IDE/npm task detection: failed to parse `package.json`. Inspect Dodo payment flow; it still shows errors.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## 2026-05-14 - Free programmatic report flow (isolated test)
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Create a free report button (free tools only) near the roast button; clicking runs only free tools; create a free report page showing all free audit details with commercial/sales logic so users see why to pay for the full audit; add free report menu in user side nav below settings. Goal: user feels their landing page must improve for conversion. Do not touch other workflows—new flow for testing only.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.

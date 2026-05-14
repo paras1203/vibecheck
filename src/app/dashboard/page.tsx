@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import React, { useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { AuthenticatedShell } from "@/components/authenticated-shell";
 import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useAuth } from "@/context/AuthContext";
 import { useIsAdmin } from "@/hooks/use-is-admin";
@@ -10,11 +10,20 @@ import { listRoastHistory } from "@/lib/roast-history";
 import { WorkspaceTitle } from "@/components/dashboard/workspace-title";
 import { RecentReportsSection } from "@/components/dashboard/recent-reports-section";
 import { DashboardAnalyticsSection } from "@/components/dashboard/dashboard-analytics-section";
+import { PendingHomeMessageBanner } from "@/components/dashboard/pending-home-message-banner";
+import { useClaimPromoOnMount } from "@/hooks/use-claim-promo-on-mount";
 
 export default function DashboardPage() {
   const isAuthenticated = useRequireAuth();
+  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
+  useClaimPromoOnMount();
+
+  useEffect(() => {
+    if (!isAuthenticated || !user?.firestoreSynced || user.onboardingCompleted) return;
+    router.replace("/onboarding");
+  }, [isAuthenticated, user, router]);
 
   const history = useMemo(() => listRoastHistory(user?.uid), [user?.uid]);
 
@@ -31,23 +40,14 @@ export default function DashboardPage() {
   }
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "14.4rem",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="flex-1 overflow-auto">
-        <div className="flex min-h-screen w-full min-w-0 flex-col gap-8 bg-background p-6 pt-8 md:ml-[14.4rem] md:p-10 md:pt-10">
-          <WorkspaceTitle user={user} />
+    <AuthenticatedShell title="Dashboard">
+      <WorkspaceTitle user={user} />
 
-          <DashboardAnalyticsSection history={history} avgScore={avgScore} />
+      <PendingHomeMessageBanner />
 
-          <RecentReportsSection user={user} isAdmin={isAdmin} />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+      <DashboardAnalyticsSection history={history} avgScore={avgScore} />
+
+      <RecentReportsSection user={user} isAdmin={isAdmin} />
+    </AuthenticatedShell>
   );
 }

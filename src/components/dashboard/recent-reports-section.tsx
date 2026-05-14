@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,13 +20,18 @@ import {
   DEFAULT_ILLUSTRATIVE_MONTHLY_SESSIONS,
 } from "@/lib/insight-layers";
 import type { User } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import {
+  fetchCloudRoastHistory,
+  mergeRoastHistoryEntries,
+} from "@/lib/roast-cloud-client";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical } from "lucide-react";
+import { Link2, MoreVertical } from "lucide-react";
 
 type Props = {
   user: User | null;
@@ -47,24 +52,65 @@ function calculatorForStoredPayload(data: AuditReportPayload) {
 }
 
 export function RecentReportsSection({ user, isAdmin }: Props) {
+  const { firebaseUser } = useAuth();
   const [tick, setTick] = useState(0);
-  const entries = useMemo(() => {
-    void tick;
-    return listRoastHistory(user?.uid);
-  }, [user?.uid, tick]);
+  const [entries, setEntries] = useState<RoastHistoryEntry[]>(() => listRoastHistory(user?.uid));
 
   const isPaid = Boolean(user && (user.plan === "pro" || user.plan === "agency"));
 
-  const loadRoastPayload = useCallback((id: string): AuditReportPayload | null => {
-    if (typeof window === "undefined") return null;
-    const raw = localStorage.getItem(`roast_${id}`);
-    if (!raw) return null;
-    try {
-      return JSON.parse(raw) as AuditReportPayload;
-    } catch {
-      return null;
+  useEffect(() => {
+    const local = listRoastHistory(user?.uid);
+    if (!firebaseUser || !(isPaid || isAdmin)) {
+      setEntries(local);
+      return;
     }
-  }, []);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const tok = await firebaseUser.getIdToken();
+        const cloud = await fetchCloudRoastHistory(tok);
+        if (!cancelled) setEntries(mergeRoastHistoryEntries(local, cloud));
+      } catch {
+        if (!cancelled) setEntries(local);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, firebaseUser, isPaid, isAdmin, tick]);
+
+  const resolvePayload = useCallback(
+    async (id: string): Promise<AuditReportPayload | null> => {
+      if (typeof window === "undefined") return null;
+      const raw = window.localStorage.getItem(`roast_${id}`);
+      if (raw) {
+        try {
+          return JSON.parse(raw) as AuditReportPayload;
+        } catch {
+          /* fall through */
+        }
+      }
+      if (user && (isPaid || isAdmin) && firebaseUser) {
+        try {
+          const token = await firebaseUser.getIdToken();
+          const res = await fetch(
+            `/api/user/roast-cloud-payload?clientRoastId=${encodeURIComponent(id)}`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+          if (res.ok) {
+            const data = (await res.json()) as { payload?: unknown };
+            if (data.payload && typeof data.payload === "object") {
+              return data.payload as AuditReportPayload;
+            }
+          }
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    },
+    [user, isPaid, isAdmin, firebaseUser],
+  );
 
   const displayNameForEntry = (entry: RoastHistoryEntry) => {
     const ts = reportTimestampFromRoastId(entry.id, entry.savedAt);
@@ -81,15 +127,27 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
     return formatReportDisplayName(url, ts);
   };
 
-  const downloadHtml = (entry: RoastHistoryEntry) => {
-    const data = loadRoastPayload(entry.id);
+  const copyReportLink = async (entry: RoastHistoryEntry) => {
+    const path = `/roast/${entry.id}`;
+    const url =
+      typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Report link copied");
+    } catch {
+      toast.error("Could not copy link");
+    }
+  };
+
+  const downloadHtml = async (entry: RoastHistoryEntry) => {
+    const data = await resolvePayload(entry.id);
     if (!data) {
-      toast.error("Saved report data not found on this device.");
+      toast.error("Report data not found on this device or in your cloud backup.");
       return;
     }
     const html = generateAuditReportHTML(data, {
       reportId: entry.id,
-      isPaid,
+      isPaid: isPaid || isAdmin,
       calculator: calculatorForStoredPayload(data),
     });
     const base = fileBaseForExport(entry, data);
@@ -104,9 +162,9 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
   };
 
   const downloadPdf = async (entry: RoastHistoryEntry) => {
-    const data = loadRoastPayload(entry.id);
+    const data = await resolvePayload(entry.id);
     if (!data) {
-      toast.error("Saved report data not found on this device.");
+      toast.error("Report data not found on this device or in your cloud backup.");
       return;
     }
     const base = fileBaseForExport(entry, data);
@@ -116,7 +174,7 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           roastData: data,
-          isPaid,
+          isPaid: isPaid || isAdmin,
           url: typeof window !== "undefined" ? window.location.origin : "",
           calculator: calculatorForStoredPayload(data),
         }),
@@ -155,7 +213,9 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Saved on this device. Exports use your current plan. Open a report for the live dashboard.
+          {isPaid || isAdmin
+            ? "Saved on this device; Pro/Agency and admin reports also sync to your account for recovery."
+            : "Saved on this device. Exports use your current plan. Open a report for the live dashboard."}
         </p>
         {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -195,9 +255,19 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
                     {new Date(e.savedAt).toLocaleString()}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <Button asChild size="sm" variant="default">
                     <Link href={`/roast/${e.id}`}>Open report</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => void copyReportLink(e)}
+                  >
+                    <Link2 className="size-3.5 stroke-[1.5]" />
+                    Copy link
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -206,7 +276,7 @@ export function RecentReportsSection({ user, isAdmin }: Props) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-48">
-                      <DropdownMenuItem onClick={() => downloadHtml(e)}>Download HTML</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => void downloadHtml(e)}>Download HTML</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => void downloadPdf(e)}>Download PDF</DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"

@@ -5,18 +5,16 @@ export function billingPath(plan: BillingCheckoutPlanId) {
   return `/checkout?plan=${plan}`;
 }
 
-export function checkoutHref(user: User | null, plan: "pro" | "agency") {
-  const path = billingPath(plan);
-  return user ? path : `/login?next=${encodeURIComponent(path)}`;
+export function checkoutHref(_user: User | null, plan: "pro" | "agency") {
+  return billingPath(plan);
 }
 
 export function freeTestBillingPath() {
   return billingPath("free_test");
 }
 
-export function freeTestCheckoutHref(user: User | null) {
-  const path = freeTestBillingPath();
-  return user ? path : `/login?next=${encodeURIComponent(path)}`;
+export function freeTestCheckoutHref(_user: User | null) {
+  return freeTestBillingPath();
 }
 
 export const LANDING_LIST_SINGLE_USD = 79;

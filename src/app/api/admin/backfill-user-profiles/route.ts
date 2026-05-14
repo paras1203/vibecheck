@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
             email: record.email ?? "",
             credits: newUserCreditsDefault(),
             plan: "free",
+            onboardingCompleted: false,
             ...(record.displayName ? { displayName: record.displayName } : {}),
             ...(record.photoURL ? { photoURL: record.photoURL } : {}),
             createdAt: FieldValue.serverTimestamp(),

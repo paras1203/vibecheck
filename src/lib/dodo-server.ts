@@ -1,11 +1,16 @@
 import "server-only";
 import DodoPayments from "dodopayments";
+import type { DodoSdkDisplayMode } from "@/lib/dodo-sdk-display-mode";
 
 export type DodoEnvMode = "test_mode" | "live_mode";
 
 export function resolveDodoEnvironment(): DodoEnvMode {
   const raw = process.env.DODO_PAYMENTS_ENVIRONMENT?.trim().toLowerCase();
   return raw === "live_mode" || raw === "live" ? "live_mode" : "test_mode";
+}
+
+export function dodoPaymentsSdkDisplayMode(): DodoSdkDisplayMode {
+  return resolveDodoEnvironment() === "live_mode" ? "live" : "test";
 }
 
 let cached: DodoPayments | null = null;

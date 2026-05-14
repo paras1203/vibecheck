@@ -105,31 +105,31 @@
 }
 
 :root[data-theme="dark"] {
-  --background: #0b0f17;
-  --foreground: #e6eaf2;
+  --background: var(--lv-bold-bg);
+  --foreground: #e8ecf4;
 
-  --surface-1: #111827;
-  --surface-2: #151d2b;
-  --surface-3: #1a2333;
+  --surface-1: var(--lv-bold-surface-1);
+  --surface-2: var(--lv-bold-surface-2);
+  --surface-3: #1a1f2e;
 
-  --border: rgba(255, 255, 255, 0.08);
+  --border: var(--lv-bold-border);
   --border-muted: rgba(255, 255, 255, 0.04);
 
-  --primary: #6366f1;
-  --primary-foreground: #ffffff;
+  --primary: var(--lv-bold-primary);
+  --primary-foreground: var(--lv-bold-primary-foreground);
 
-  --accent: #22d3ee;
+  --accent: var(--lv-bold-accent);
   --accent-foreground: #042f2e;
 
-  --muted: #94a3b8;
+  --muted: var(--lv-bold-muted);
   --muted-foreground: #64748b;
 
   --success: #22c55e;
   --warning: #f59e0b;
   --destructive: #ef4444;
 
-  --chart-1: #6366f1;
-  --chart-2: #22d3ee;
+  --chart-1: var(--lv-bold-primary);
+  --chart-2: var(--lv-bold-accent);
   --chart-3: #22c55e;
   --chart-4: #f59e0b;
   --chart-5: #ef4444;
@@ -165,35 +165,36 @@
 }
 
 :root[data-theme="light"] {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --radius: 0.625rem;
+  --background: #f5f5f7;
+  --foreground: #1d1d1f;
 
   --surface-1: #ffffff;
-  --surface-2: #f1f5f9;
-  --surface-3: #e2e8f0;
+  --surface-2: #ececef;
+  --surface-3: #e8e8ed;
 
-  --border: rgba(15, 23, 42, 0.08);
-  --border-muted: rgba(15, 23, 42, 0.04);
+  --border: rgba(0, 0, 0, 0.08);
+  --border-muted: rgba(0, 0, 0, 0.055);
 
-  --primary: #4f46e5;
+  --primary: var(--lv-c2-accent);
   --primary-foreground: #ffffff;
 
   --accent: #06b6d4;
   --accent-foreground: #083344;
 
-  --muted: #64748b;
-  --muted-foreground: #94a3b8;
+  --muted: #6e6e73;
+  --muted-foreground: #86868b;
 
   --success: #16a34a;
   --warning: #d97706;
   --destructive: #dc2626;
 
-  --chart-1: #4f46e5;
+  --chart-1: var(--lv-minimal-accent);
   --chart-2: #06b6d4;
   --chart-3: #16a34a;
   --chart-4: #d97706;
   --chart-5: #dc2626;
-  --chart-grid: rgba(15, 23, 42, 0.12);
+  --chart-grid: rgba(0, 0, 0, 0.1);
   --chart-tooltip-bg: var(--surface-2);
   --chart-tooltip-border: var(--border);
   --chart-tooltip-foreground: var(--foreground);
@@ -219,8 +220,8 @@
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--primary);
-  --shadow-xs: 0 1px 2px color-mix(in srgb, var(--foreground) 5%, transparent);
-  --shadow-sm: 0 2px 10px color-mix(in srgb, var(--foreground) 6%, transparent);
+  --shadow-xs: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 8px 28px rgba(0, 0, 0, 0.09);
   --glow-primary: 0 0 32px color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
@@ -357,6 +358,10 @@
   box-shadow: 0 0 60px color-mix(in srgb, var(--lv-bold-primary) 40%, transparent);
 }
 
+.lv-glow-violet-soft {
+  box-shadow: 0 0 40px color-mix(in srgb, var(--lv-bold-primary) 22%, transparent);
+}
+
 .lv-hover-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
@@ -399,6 +404,32 @@
   }
   100% {
     transform: translateX(30%) rotate(12deg);
+  }
+}
+
+.lv-shine-subtle {
+  position: relative;
+  overflow: hidden;
+}
+.lv-shine-subtle::after {
+  content: "";
+  position: absolute;
+  inset: -40% -60%;
+  background: linear-gradient(
+    105deg,
+    transparent 42%,
+    color-mix(in srgb, #fff 9%, transparent) 50%,
+    transparent 58%
+  );
+  animation: lv-shine-subtle 9s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes lv-shine-subtle {
+  0% {
+    transform: translateX(-28%) rotate(12deg);
+  }
+  100% {
+    transform: translateX(28%) rotate(12deg);
   }
 }
 

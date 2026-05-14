@@ -3,6 +3,7 @@ import { Timestamp } from "firebase-admin/firestore";
 import { getAdminAuth, getAdminDb } from "@/lib/firebase-admin";
 import { isServerAdminEmail } from "@/lib/admin";
 import { fetchAuditLogsSince } from "@/lib/audit-log-server";
+import { fetchAuditFailuresSince } from "@/lib/audit-failure-log";
 import { getLlmStackPublicConfig } from "@/lib/llm-models";
 
 export const dynamic = "force-dynamic";
@@ -41,6 +42,10 @@ function utcDayKey(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+function utcHourKey(ms: number): number {
+  return new Date(ms).getUTCHours();
+}
+
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization") || "";
@@ -63,7 +68,10 @@ export async function GET(request: NextRequest) {
     const rawRange = request.nextUrl.searchParams.get("range") || "30d";
     const range = RANGE_KEYS.has(rawRange) ? rawRange : "30d";
     const startMs = startMsForRange(range);
-    const logs = await fetchAuditLogsSince(startMs);
+    const [logs, failures] = await Promise.all([
+      fetchAuditLogsSince(startMs),
+      fetchAuditFailuresSince(startMs),
+    ]);
 
     const n = logs.length;
     const uniqueUsers = new Set(logs.map((l) => l.userId).filter(Boolean)).size;
@@ -78,6 +86,36 @@ export async function GET(request: NextRequest) {
       byDay.set(k, (byDay.get(k) ?? 0) + 1);
     }
     const auditsByDay = [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    const distinctAuditedUrls = new Set(logs.map((l) => l.auditedUrl).filter(Boolean)).size;
+
+    const auditsByHourUtc = (() => {
+      const counts = new Map<number, number>();
+      const uniq = new Map<number, Set<string>>();
+      for (let h = 0; h < 24; h++) {
+        counts.set(h, 0);
+        uniq.set(h, new Set());
+      }
+      for (const l of logs) {
+        const h = utcHourKey(l.createdAtMs);
+        counts.set(h, (counts.get(h) ?? 0) + 1);
+        if (l.userId) uniq.get(h)?.add(l.userId);
+      }
+      return Array.from({ length: 24 }, (_, hour) => ({
+        hour,
+        audits: counts.get(hour) ?? 0,
+        distinctUsers: uniq.get(hour)?.size ?? 0,
+      }));
+    })();
+
+    const failuresByDayMap = new Map<string, number>();
+    for (const f of failures) {
+      const k = utcDayKey(f.createdAtMs);
+      failuresByDayMap.set(k, (failuresByDayMap.get(k) ?? 0) + 1);
+    }
+    const failuresByDay = [...failuresByDayMap.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({ date, count }));
 
@@ -104,8 +142,9 @@ export async function GET(request: NextRequest) {
     }
 
     const planCounts = { free: 0, pro: 0, agency: 0, other: 0 };
+    const planSampleCap = 3000;
     try {
-      const us = await db.collection("users").limit(1200).get();
+      const us = await db.collection("users").limit(planSampleCap).get();
       for (const d of us.docs) {
         const p = String(d.data()?.plan ?? "free").toLowerCase();
         if (p === "pro") planCounts.pro += 1;
@@ -118,6 +157,7 @@ export async function GET(request: NextRequest) {
     }
 
     let paymentsInRange = 0;
+    let totalCreditsSoldInRange = 0;
     try {
       const payAgg = await db
         .collection("payments")
@@ -129,6 +169,53 @@ export async function GET(request: NextRequest) {
       paymentsInRange = 0;
     }
 
+    try {
+      const paySnap = await db
+        .collection("payments")
+        .where("createdAt", ">=", Timestamp.fromMillis(startMs))
+        .limit(2000)
+        .get();
+      for (const d of paySnap.docs) {
+        totalCreditsSoldInRange += Number(d.data()?.creditsGranted) || 0;
+      }
+    } catch {
+      totalCreditsSoldInRange = 0;
+    }
+
+    let registrationsInRange = 0;
+    const registrationsByDayMap = new Map<string, number>();
+    try {
+      const regSnap = await db
+        .collection("users")
+        .where("createdAt", ">=", Timestamp.fromMillis(startMs))
+        .limit(5000)
+        .get();
+      registrationsInRange = regSnap.size;
+      for (const d of regSnap.docs) {
+        const created = d.data()?.createdAt as Timestamp | undefined;
+        const ms = created?.toMillis?.() ?? 0;
+        if (!ms) continue;
+        const k = utcDayKey(ms);
+        registrationsByDayMap.set(k, (registrationsByDayMap.get(k) ?? 0) + 1);
+      }
+    } catch {
+      registrationsInRange = 0;
+    }
+    const registrationsByDay = [...registrationsByDayMap.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, count]) => ({ date, count }));
+
+    let promoRemainingSlots: number | null = null;
+    try {
+      const promoSnap = await db.collection("admin_config").doc("promo_registration").get();
+      promoRemainingSlots =
+        typeof promoSnap.data()?.remainingSlots === "number"
+          ? promoSnap.data()!.remainingSlots
+          : null;
+    } catch {
+      promoRemainingSlots = null;
+    }
+
     return NextResponse.json({
       range,
       rangeStartMs: startMs,
@@ -136,6 +223,7 @@ export async function GET(request: NextRequest) {
       audits: {
         count: n,
         uniqueUsersWithAudit: uniqueUsers,
+        distinctAuditedUrls,
         avgPromptTokensPerAudit: n ? Math.round(sumPrompt / n) : 0,
         avgCandidatesTokensPerAudit: n ? Math.round(sumCand / n) : 0,
         avgTotalTokensPerAudit: n ? Math.round((sumPrompt + sumCand) / n) : 0,
@@ -144,15 +232,32 @@ export async function GET(request: NextRequest) {
         avgOverallScore: n ? Math.round((sumScore / n) * 10) / 10 : 0,
         deviceSplit: { mobile: deviceMobile, desktop: deviceDesktop },
         auditsByDay,
+        auditsByHourUtc,
         topIndustries,
+      },
+      failures: {
+        count: failures.length,
+        failuresByDay,
       },
       users: {
         totalProfilesCounted: totalUserProfiles,
-        planSampleSize: Math.min(1200, totalUserProfiles || 1200),
+        planSampleSize: Math.min(planSampleCap, totalUserProfiles || planSampleCap),
         planCountsSample: planCounts,
+        registrationsInRange,
+        registrationsByDay,
       },
       payments: {
         paidOrdersInRange: paymentsInRange,
+        totalCreditsSoldInRange,
+        revenueNote:
+          "USD revenue per payment is not stored on payment docs today; credits sold sums creditsGranted in range as a commerce proxy.",
+      },
+      promo: {
+        remainingSlots: promoRemainingSlots,
+      },
+      geo: {
+        regionNote:
+          "Region/country is not tracked on audits yet; add geo headers or billing address capture to populate.",
       },
       llm: getLlmStackPublicConfig(),
       pricingNote:

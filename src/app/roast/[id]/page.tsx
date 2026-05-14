@@ -1,17 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, usePathname } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AuthenticatedShell } from "@/components/authenticated-shell";
 import { RoastRadar } from "@/components/roast-radar";
-import {
-  SidebarProvider,
-  SidebarInset,
-} from "@/components/ui/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RadialChart } from "@/components/ui/radial-chart";
 import {
@@ -66,7 +62,8 @@ import {
 } from "@/lib/report-html";
 import { generateAuditReportHTMLV2 } from "@/lib/report-html-v2";
 import { RoastReportV2 } from "@/components/roast/roast-report-v2";
-import { upsertRoastHistory } from "@/lib/roast-history";
+import { upsertRoastHistory, type RoastHistoryEntry } from "@/lib/roast-history";
+import { syncRoastPayloadToCloud } from "@/lib/roast-cloud-client";
 import { SectionHeader } from "@/components/ui/section-header";
 import { cn } from "@/lib/utils";
 import { formatReportDisplayName, reportTimestampFromRoastId } from "@/lib/report-display-name";
@@ -272,14 +269,12 @@ function auditStatusBadgeVariant(
 
 export default function RoastPage() {
   const params = useParams();
-  const pathname = usePathname();
   const {
     user,
     firebaseUser,
     handleGoogleAuth,
     handleEmailSignIn,
     handleEmailSignUp,
-    sendEmailSignInLink,
     loading: authLoading,
     isSyncing,
   } = useAuth();
@@ -409,17 +404,42 @@ export default function RoastPage() {
   }, [params.id]);
 
   useEffect(() => {
-    if (!roastData || !params.id) return;
+    if (!roastData || !params.id || !user?.uid) return;
     const id = params.id as string;
-    upsertRoastHistory(user?.uid, {
+    const historyEntry: RoastHistoryEntry = {
       id,
       savedAt: Date.now(),
-      overallScore:
-        roastData.overall_score || roastData.overview?.overallScore,
+      overallScore: roastData.overall_score || roastData.overview?.overallScore,
       auditedUrl: roastData.audited_url,
       planAtSave: user?.plan,
-    });
-  }, [roastData, params.id, user?.uid, user?.plan]);
+    };
+    upsertRoastHistory(user.uid, historyEntry);
+
+    const cloudEligible =
+      user.plan === "pro" || user.plan === "agency" || isAdmin;
+    if (!cloudEligible || !firebaseUser) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const token = await firebaseUser.getIdToken();
+        await syncRoastPayloadToCloud(token, historyEntry, roastData as Record<string, unknown>);
+      } catch {
+        if (!cancelled) {
+          /* cloud sync optional */
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    firebaseUser,
+    isAdmin,
+    params.id,
+    roastData,
+    user?.plan,
+    user?.uid,
+  ]);
 
   // Update price and industry when roastData loads
   useEffect(() => {
@@ -644,27 +664,17 @@ export default function RoastPage() {
 
   if (loading) {
     return (
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset className="flex-1">
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-muted-foreground">Loading roast analysis...</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <AuthenticatedShell contentClassName="flex flex-1 items-center justify-center">
+        <div className="text-muted-foreground">Loading roast analysis...</div>
+      </AuthenticatedShell>
     );
   }
 
   if (error || !roastData) {
     return (
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset className="flex-1">
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-destructive">{error || "Roast not found"}</div>
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+      <AuthenticatedShell contentClassName="flex flex-1 items-center justify-center">
+        <div className="text-destructive">{error || "Roast not found"}</div>
+      </AuthenticatedShell>
     );
   }
 
@@ -771,18 +781,10 @@ export default function RoastPage() {
   const showSeoHealthBlock = hasRoastSeoHealthContent(seoHealthBlockData);
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "14.4rem",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="flex-1 overflow-auto">
-        <div className="flex min-h-screen w-full min-w-0 max-w-[min(100%,88rem)] flex-col items-stretch justify-start gap-10 bg-background p-6 pt-8 md:ml-[14.4rem] md:w-[calc(100%-14.4rem)] md:gap-12 md:p-10 md:pt-10">
-          <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div>
+    <AuthenticatedShell>
+      <div className="flex w-full min-w-0 flex-col gap-10 md:gap-12">
+          <div className="flex w-full min-w-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0 shrink">
               <h1 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">
                 Site Conversion Report
               </h1>
@@ -790,7 +792,11 @@ export default function RoastPage() {
                 <p className="mt-1 font-mono text-sm text-muted-foreground">{reportFileBase}</p>
               ) : null}
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex w-full min-w-0 flex-col items-stretch gap-3 md:max-w-2xl md:items-end lg:max-w-none">
+              {user && roastData ? (
+                <ShareYourScore compact roastData={roastData} overallScore={overallScore} />
+              ) : null}
+              <div className="flex w-full min-w-0 flex-wrap justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -840,10 +846,11 @@ export default function RoastPage() {
                 View V2 HTML
               </Button>
             </div>
+            </div>
           </div>
 
           <Tabs defaultValue="v1">
-            <div className="flex w-full flex-col gap-8">
+            <div className="flex w-full min-w-0 flex-col gap-8 overflow-x-hidden">
             <TabsList className="grid w-full max-w-md grid-cols-2">
               <TabsTrigger value="v1">Report V1</TabsTrigger>
               <TabsTrigger value="v2">Report V2 (beta)</TabsTrigger>
@@ -1048,7 +1055,7 @@ export default function RoastPage() {
             </div>
           ) : null}
 
-          {isAdmin ? (
+          {user && roastData ? (
             <ShareYourScore roastData={roastData} overallScore={overallScore} />
           ) : null}
 
@@ -1549,21 +1556,19 @@ export default function RoastPage() {
             </TabsContent>
             </div>
           </Tabs>
+          <AuthRequiredDialog
+            open={showExportAuthDialog}
+            onOpenChange={setShowExportAuthDialog}
+            allowDismiss
+            title="Sign in to export"
+            description="Exports are tied to your account. Sign in to download PDF or HTML, or open the report in a new tab."
+            onAuthSuccess={handleExportAuthSuccess}
+            onGoogleAuth={handleGoogleAuth}
+            onEmailSignIn={handleEmailSignIn}
+            onEmailSignUp={handleEmailSignUp}
+            loading={authLoading || isSyncing}
+          />
         </div>
-      </SidebarInset>
-      <AuthRequiredDialog
-        open={showExportAuthDialog}
-        onOpenChange={setShowExportAuthDialog}
-        allowDismiss
-        title="Sign in to export"
-        description="Exports are tied to your account. Sign in to download PDF or HTML, or open the report in a new tab."
-        onAuthSuccess={handleExportAuthSuccess}
-        onGoogleAuth={handleGoogleAuth}
-        onEmailSignIn={handleEmailSignIn}
-        onEmailSignUp={handleEmailSignUp}
-        onSendEmailLink={(email) => sendEmailSignInLink(email, pathname || "/dashboard")}
-        loading={authLoading || isSyncing}
-      />
-    </SidebarProvider>
+    </AuthenticatedShell>
   );
 }

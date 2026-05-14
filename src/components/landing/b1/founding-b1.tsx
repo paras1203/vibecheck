@@ -13,9 +13,8 @@ function billingPath(plan: "pro") {
   return `/checkout?plan=${plan}`;
 }
 
-function checkoutHref(user: User | null, plan: "pro") {
-  const path = billingPath(plan);
-  return user ? path : `/login?next=${encodeURIComponent(path)}`;
+function checkoutHref(_user: User | null, plan: "pro") {
+  return billingPath(plan);
 }
 
 function secondaryDemoLink(): {
@@ -48,7 +47,7 @@ export function FoundingB1({ user, loading }: FoundingB1Props) {
       className="border-t border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-surface-1)] px-4 py-24 md:px-8"
     >
       <div className="container mx-auto max-w-3xl">
-        <div className="rounded-3xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] p-8 shadow-surface-sm md:p-10">
+        <div className="rounded-xl border border-[var(--lv-minimal-border)] bg-[var(--lv-minimal-bg)] p-8 md:p-10">
           <p className="text-xs font-semibold uppercase tracking-wider text-[var(--lv-minimal-accent)]">
             Founding cohort
           </p>

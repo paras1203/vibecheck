@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { Loader2 } from "lucide-react";
+import { AdminAnalyticsExtended } from "@/components/admin/admin-analytics-extended";
+import { AdminMasterControls } from "@/components/admin/admin-master-controls";
 
 const RANGES = [
   { key: "today", label: "Today" },
@@ -29,6 +31,8 @@ type AnalyticsPayload = {
   audits: {
     count: number;
     uniqueUsersWithAudit: number;
+    distinctAuditedUrls: number;
+    auditsByHourUtc: { hour: number; audits: number; distinctUsers: number }[];
     avgPromptTokensPerAudit: number;
     avgCandidatesTokensPerAudit: number;
     avgTotalTokensPerAudit: number;
@@ -39,12 +43,24 @@ type AnalyticsPayload = {
     auditsByDay: { date: string; count: number }[];
     topIndustries: { label: string; count: number }[];
   };
+  failures: {
+    count: number;
+    failuresByDay: { date: string; count: number }[];
+  };
   users: {
     totalProfilesCounted: number;
     planSampleSize: number;
     planCountsSample: { free: number; pro: number; agency: number; other: number };
+    registrationsInRange: number;
+    registrationsByDay: { date: string; count: number }[];
   };
-  payments: { paidOrdersInRange: number };
+  payments: {
+    paidOrdersInRange: number;
+    totalCreditsSoldInRange: number;
+    revenueNote: string;
+  };
+  promo: { remainingSlots: number | null };
+  geo: { regionNote: string };
   llm: {
     provider: string;
     llm1: { label: string; primary: string; fallback: string };
@@ -118,6 +134,8 @@ export function AdminAnalyticsDashboard() {
           Refresh
         </Button>
       </div>
+
+      <AdminMasterControls analyticsRange={range} />
 
       {err ? (
         <p className="text-sm text-destructive">{err}</p>
@@ -213,6 +231,23 @@ export function AdminAnalyticsDashboard() {
             </CardContent>
           </Card>
 
+          <AdminAnalyticsExtended
+            data={{
+              audits: {
+                distinctAuditedUrls: data.audits.distinctAuditedUrls,
+                auditsByHourUtc: data.audits.auditsByHourUtc,
+              },
+              failures: data.failures,
+              users: {
+                registrationsInRange: data.users.registrationsInRange,
+                registrationsByDay: data.users.registrationsByDay,
+              },
+              payments: data.payments,
+              promo: data.promo,
+              geo: data.geo,
+            }}
+          />
+
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
@@ -224,6 +259,10 @@ export function AdminAnalyticsDashboard() {
                   <strong className="tabular-nums">
                     {data.users.totalProfilesCounted.toLocaleString()}
                   </strong>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">New registrations (range):</span>{" "}
+                  <strong className="tabular-nums">{data.users.registrationsInRange}</strong>
                 </p>
                 <p className="text-muted-foreground">
                   Plan mix from first {data.users.planSampleSize} docs (sample):
@@ -297,6 +336,13 @@ export function AdminAnalyticsDashboard() {
                   <span className="text-muted-foreground">Paid orders recorded (range):</span>{" "}
                   <strong className="tabular-nums">{data.payments.paidOrdersInRange}</strong>
                 </p>
+                <p className="mt-2">
+                  <span className="text-muted-foreground">Credits sold (range):</span>{" "}
+                  <strong className="tabular-nums">
+                    {data.payments.totalCreditsSoldInRange.toLocaleString()}
+                  </strong>
+                </p>
+                <p className="mt-2 text-xs text-muted-foreground">{data.payments.revenueNote}</p>
                 <p className="mt-2 text-xs text-muted-foreground">
                   Audit logs are written only for authenticated roasts (Bearer idToken on POST
                   /api/roast). Anonymous runs are not counted here.

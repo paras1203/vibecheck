@@ -1,26 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { signInAnonymously } from "firebase/auth";
 import { DodoPayments, type CheckoutEvent } from "dodopayments-checkout";
 import { Button } from "@/components/ui/button";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AuthenticatedShell } from "@/components/authenticated-shell";
 import { CheckoutOrderSummary } from "@/components/checkout/checkout-order-summary";
+import { GuestCheckoutIdentityForm } from "@/components/checkout/guest-checkout-identity-form";
 import { fetchDodoCheckoutSessionUrl } from "@/components/dodo-open-checkout";
 import { useAuth } from "@/context/AuthContext";
-import { useRequireAuth } from "@/hooks/use-require-auth";
 import {
   PLAN_PURCHASE_CREDITS_PER_UNIT,
   creditsForPurchase,
   normalizeCheckoutQty,
   type BillingCheckoutPlanId,
 } from "@/lib/billing-plans";
-import { dodoCheckoutSdkMode } from "@/lib/dodo-checkout-sdk-mode";
-import { DODO_INLINE_CHECKOUT_ELEMENT_ID } from "@/lib/dodo-inline-checkout-element-id";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { toast } from "sonner";
 
 function isCheckoutPlanId(v: string | null): v is BillingCheckoutPlanId {
@@ -58,10 +57,9 @@ function planOrderCopy(plan: BillingCheckoutPlanId, unitQty: number): {
 type BreakdownMoney = Parameters<typeof CheckoutOrderSummary>[0]["breakdown"];
 
 export function DodoCheckoutFlow() {
-  const { firebaseUser, isSyncing } = useAuth();
+  const { firebaseUser, user, loading, authResolved, isSyncing } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isAuthenticated = useRequireAuth();
 
   const plan = useMemo(() => {
     const raw = searchParams.get("plan");
@@ -75,67 +73,108 @@ export function DodoCheckoutFlow() {
 
   const [bootError, setBootError] = useState<string | null>(null);
   const [breakdown, setBreakdown] = useState<BreakdownMoney>({});
-  const [frameLoading, setFrameLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(true);
+  const [anonBootError, setAnonBootError] = useState<string | null>(null);
 
-  const handleEvent = useCallback(
-    (event: CheckoutEvent) => {
-      switch (event.event_type) {
-        case "checkout.breakdown": {
-          const message = event.data?.message as BreakdownMoney | undefined;
-          if (message) setBreakdown(message);
-          break;
-        }
-        case "checkout.opened":
-          setFrameLoading(true);
-          break;
-        case "checkout.form_ready":
-          setFrameLoading(false);
-          break;
-        case "checkout.payment_page_opened":
-          setFrameLoading(false);
-          break;
-        case "checkout.error": {
-          const msg = event.data?.message;
-          toast.error(typeof msg === "string" ? msg : "Checkout error");
-          break;
-        }
-        default:
-          break;
+  const handleEvent = useCallback((event: CheckoutEvent) => {
+    switch (event.event_type) {
+      case "checkout.breakdown": {
+        const message = event.data?.message as BreakdownMoney | undefined;
+        if (message) setBreakdown(message);
+        break;
       }
-    },
-    []
-  );
+      case "checkout.opened":
+        setSessionLoading(false);
+        break;
+      case "checkout.closed":
+        setSessionLoading(false);
+        break;
+      case "checkout.form_ready":
+      case "checkout.payment_page_opened":
+        setSessionLoading(false);
+        break;
+      case "checkout.error": {
+        const msg = event.data?.message;
+        toast.error(typeof msg === "string" ? msg : "Checkout error");
+        break;
+      }
+      default:
+        break;
+    }
+  }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || !firebaseUser || !plan || isSyncing) return;
+    if (!authResolved || loading || firebaseUser) return;
+    let cancelled = false;
+    void signInAnonymously(getFirebaseAuth())
+      .then(() => {
+        if (!cancelled) setAnonBootError(null);
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setAnonBootError(e instanceof Error ? e.message : "Could not start guest session");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authResolved, loading, firebaseUser]);
+
+  const identityReadyForCheckout =
+    Boolean(firebaseUser) &&
+    (!firebaseUser?.isAnonymous || Boolean(user?.guestCheckoutEmail?.trim()));
+
+  useEffect(() => {
+    if (!firebaseUser || !plan || !identityReadyForCheckout || isSyncing || !authResolved) return;
 
     let cancelled = false;
 
     void (async () => {
       setBootError(null);
+      setSessionLoading(true);
       try {
         const token = await firebaseUser.getIdToken(true);
-        const checkoutUrl = await fetchDodoCheckoutSessionUrl(
+        const { checkoutUrl, sdkMode } = await fetchDodoCheckoutSessionUrl(
           plan,
           token,
           plan === "free_test" ? undefined : unitQty
         );
         if (cancelled) return;
 
+        // #region agent log
+        let checkoutHost = "";
+        try {
+          checkoutHost = new URL(checkoutUrl).hostname;
+        } catch {
+          checkoutHost = "parse_fail";
+        }
+        fetch("http://127.0.0.1:7848/ingest/82f5425f-b2b1-4559-a030-418ece2f80c9", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "b9a3d6" },
+          body: JSON.stringify({
+            sessionId: "b9a3d6",
+            runId: "overlay-checkout",
+            hypothesisId: "H2",
+            location: "dodo-checkout-flow.tsx:open-overlay",
+            message: "checkout session ok, opening overlay",
+            data: { checkoutHost, sdkMode, plan },
+            timestamp: Date.now(),
+          }),
+        }).catch(() => {});
+        // #endregion
+
         DodoPayments.Initialize({
-          mode: dodoCheckoutSdkMode(),
-          displayType: "inline",
+          mode: sdkMode,
+          displayType: "overlay",
           onEvent: handleEvent,
         });
 
-        DodoPayments.Checkout.open({
-          checkoutUrl,
-          elementId: DODO_INLINE_CHECKOUT_ELEMENT_ID,
-        });
+        DodoPayments.Checkout.open({ checkoutUrl });
       } catch (e) {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : "Could not open checkout";
         setBootError(msg);
+        setSessionLoading(false);
         toast.error("Checkout failed", { description: msg });
       }
     })();
@@ -144,80 +183,103 @@ export function DodoCheckoutFlow() {
       cancelled = true;
       DodoPayments.Checkout.close();
     };
-  }, [firebaseUser, handleEvent, isAuthenticated, isSyncing, plan, unitQty]);
+  }, [
+    authResolved,
+    firebaseUser,
+    handleEvent,
+    identityReadyForCheckout,
+    isSyncing,
+    plan,
+    unitQty,
+  ]);
 
   useEffect(() => {
-    if (isAuthenticated && !plan) {
+    if (!firebaseUser || loading || !authResolved) return;
+    if (!plan) {
       toast.error("Invalid plan", { description: "Choose a plan from Billing." });
       router.replace("/billing");
     }
-  }, [isAuthenticated, plan, router]);
+  }, [authResolved, firebaseUser, loading, plan, router]);
 
-  if (!isAuthenticated) {
-    return null;
+  if (!authResolved || loading) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" />
+        <span className="text-sm">Signing you in…</span>
+      </div>
+    );
   }
 
-  if (!plan) {
-    return null;
+  if (!firebaseUser) {
+    return (
+      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 px-4 text-center">
+        {anonBootError ? (
+          <p className="text-sm text-destructive">{anonBootError}</p>
+        ) : (
+          <>
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">Preparing checkout…</span>
+          </>
+        )}
+      </div>
+    );
   }
+
+  if (!plan) return null;
 
   const copy = planOrderCopy(plan, unitQty);
+  const guestNeedsForm = firebaseUser.isAnonymous && !user?.guestCheckoutEmail?.trim();
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "14.4rem",
-        } as CSSProperties
-      }
-    >
-      <AppSidebar />
-      <SidebarInset className="flex-1 overflow-auto">
-        <div className="flex min-h-screen w-full min-w-0 max-w-[min(100%,88rem)] flex-col gap-8 bg-background p-6 pt-8 md:ml-[14.4rem] md:w-[calc(100%-14.4rem)] md:p-10 md:pt-10">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">Checkout</h1>
-              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
-                Complete payment below. The full Dodo frame (including footer with terms) must stay
-                visible for compliance.
+    <AuthenticatedShell constrainContentWidth>
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Checkout</h1>
+          <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+            A secure Dodo Payments window opens on top of this page. Complete payment there, then
+            return here if the window does not redirect automatically.
+          </p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/billing">Back to billing</Link>
+        </Button>
+      </div>
+
+      {guestNeedsForm ? (
+        <div className="mx-auto mb-10 max-w-md">
+          <GuestCheckoutIdentityForm />
+        </div>
+      ) : null}
+
+      {bootError ? (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-foreground">
+          {bootError}
+        </div>
+      ) : null}
+
+      {!guestNeedsForm ? (
+        <div className="grid min-w-0 gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
+          <div className="flex min-h-[280px] w-full flex-col justify-center rounded-lg border border-border bg-muted/20 p-8">
+            {!bootError && sessionLoading ? (
+              <div className="flex flex-col items-center gap-3 text-center text-muted-foreground" aria-busy="true">
+                <Loader2 className="size-8 animate-spin" />
+                <p className="text-sm">Starting secure checkout…</p>
+              </div>
+            ) : !bootError ? (
+              <p className="text-center text-sm text-muted-foreground">
+                If you closed the payment window, go back to Billing or refresh this page to try
+                again.
               </p>
-            </div>
-            <Button variant="outline" asChild>
-              <Link href="/billing">Back to billing</Link>
-            </Button>
+            ) : null}
           </div>
-
-          {bootError ? (
-            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-foreground">
-              {bootError}
-            </div>
-          ) : null}
-
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
-            <div className="relative min-h-[560px] w-full">
-              {!bootError && frameLoading ? (
-                <div
-                  className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-background/70"
-                  aria-busy="true"
-                >
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="size-5 animate-spin" />
-                    <span className="text-sm">Loading checkout…</span>
-                  </div>
-                </div>
-              ) : null}
-              <div id={DODO_INLINE_CHECKOUT_ELEMENT_ID} className="min-h-[520px] w-full" />
-            </div>
-            <div className="space-y-4">
-              <CheckoutOrderSummary title={copy.title} description={copy.description} breakdown={breakdown} />
-              <p className="text-xs text-muted-foreground">
-                Renewal and subscription details appear in checkout when applicable (e.g. recurring
-                products).
-              </p>
-            </div>
+          <div className="space-y-4">
+            <CheckoutOrderSummary title={copy.title} description={copy.description} breakdown={breakdown} />
+            <p className="text-xs text-muted-foreground">
+              Renewal and subscription details appear in checkout when applicable.
+            </p>
           </div>
         </div>
-      </SidebarInset>
-    </SidebarProvider>
+      ) : null}
+    </AuthenticatedShell>
   );
 }

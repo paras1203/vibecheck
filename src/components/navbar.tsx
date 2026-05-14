@@ -70,7 +70,7 @@ export function Navbar({
   const links = navMode === "concept" ? CONCEPT_LINKS : FULL_LINKS;
 
   const navShell = cn(
-    "sticky top-0 z-50 w-full border-b shadow-surface-xs backdrop-blur-md",
+    "sticky top-0 z-50 w-full border-b shadow-surface-xs backdrop-blur-md supports-[backdrop-filter]:bg-background/80",
     tone === "default" && "border-border bg-background/85",
     tone === "dark" && "border-white/10 bg-black/80 text-white",
     tone === "minimal" &&
@@ -101,20 +101,39 @@ export function Navbar({
 
   return (
     <nav className={navShell}>
-      <div className="flex h-14 w-full items-center justify-between gap-4 px-4 md:h-16 md:px-8">
-        <Link href="/" className={brandClass}>
+      <div className="mx-auto flex h-14 w-full min-w-0 max-w-[min(100%,96rem)] items-center justify-between gap-2 px-4 md:h-16 md:gap-4 md:px-8">
+        <Link href="/" className={cn(brandClass, "shrink-0")}>
           {BRAND_NAME}
         </Link>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-center gap-5 md:flex lg:gap-7">
-          {links.map((item) => (
-            <Link key={item.href} href={item.href} className={linkClass}>
-              {item.label}
-            </Link>
-          ))}
+        <div
+          className={cn(
+            "hidden min-h-14 min-w-0 flex-1 items-center justify-center overflow-x-auto overflow-y-hidden md:flex md:min-h-16",
+            navMode === "concept"
+              ? "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              : "flex-wrap gap-x-2 gap-y-1 lg:gap-x-5"
+          )}
+        >
+          {navMode === "concept" ? (
+            <>
+              <div className="flex shrink-0 items-center gap-x-3 whitespace-nowrap lg:gap-x-5">
+                {links.map((item) => (
+                  <Link key={item.href} href={item.href} className={linkClass}>
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+            </>
+          ) : (
+            links.map((item) => (
+              <Link key={item.href} href={item.href} className={linkClass}>
+                {item.label}
+              </Link>
+            ))
+          )}
         </div>
 
-        <div className="flex items-center gap-2 md:gap-3">
+        <div className="flex shrink-0 items-center gap-2 md:gap-3">
           {navMode === "concept" ? (
             <Sheet>
               <SheetTrigger asChild>
@@ -247,9 +266,9 @@ export function Navbar({
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={logout}
-                  className="cursor-pointer text-destructive focus:text-destructive"
+                  className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
                 >
-                  Logout
+                  Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -289,7 +308,7 @@ export function Navbar({
                 |
               </span>
               <Link
-                href="/login?mode=signup"
+                href="/login?mode=signup&next=/onboarding"
                 className={cn(
                   "transition-colors",
                   tone === "default" && "text-foreground hover:text-primary",

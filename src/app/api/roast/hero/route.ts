@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { CaptureBlockedError } from "@/lib/capture-page-health";
 import { captureScreenshotFromUrl } from "@/lib/capture";
 import { safeErrorMessage } from "@/lib/json-utils";
 
@@ -23,6 +24,17 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       const details = error.issues.map((i) => i.message).join(", ");
       return NextResponse.json({ error: "Invalid request", details }, { status: 400 });
+    }
+    if (error instanceof CaptureBlockedError) {
+      return NextResponse.json(
+        {
+          error: "Page could not be captured",
+          details: error.message,
+          code: error.code,
+          heroScreenshot: null,
+        },
+        { status: 422 }
+      );
     }
     console.error("[api/roast/hero]", safeErrorMessage(error));
     return NextResponse.json(

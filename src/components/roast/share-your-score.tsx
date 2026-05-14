@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Linkedin, Twitter, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,31 +15,25 @@ import {
   buildSharePostText,
 } from "@/lib/share-audit";
 
-function shareUrlSubscribe() {
-  return () => {};
-}
-
-function shareUrlSnapshot() {
-  return typeof window !== "undefined" ? window.location.origin : "https://siteroast.ai";
-}
-
 type ShareYourScoreProps = {
   roastData: RoastShareInput;
   overallScore: number;
+  /** Toolbar-only row (no card / textarea). */
+  compact?: boolean;
 };
 
-export function ShareYourScore({ roastData, overallScore }: ShareYourScoreProps) {
+export function ShareYourScore({ roastData, overallScore, compact }: ShareYourScoreProps) {
   const [anonymize, setAnonymize] = useState(false);
-  const shareUrl = useSyncExternalStore(
-    shareUrlSubscribe,
-    shareUrlSnapshot,
-    () => "https://siteroast.ai"
-  );
+  const pathname = usePathname() || "";
+  const shareUrl = useMemo(() => {
+    if (typeof window === "undefined") return "https://siteroast.ai";
+    return `${window.location.origin}${pathname}`;
+  }, [pathname]);
   const [copied, setCopied] = useState(false);
 
   const domainLabel = useMemo(
     () => displayDomain(roastData.audited_url, anonymize),
-    [roastData.audited_url, anonymize]
+    [roastData.audited_url, anonymize],
   );
 
   const issues = useMemo(() => pickShareIssues(roastData), [roastData]);
@@ -53,7 +48,7 @@ export function ShareYourScore({ roastData, overallScore }: ShareYourScoreProps)
         improvement,
         shareUrl,
       }),
-    [overallScore, domainLabel, issues, improvement, shareUrl]
+    [overallScore, domainLabel, issues, improvement, shareUrl],
   );
 
   const xHref = useMemo(() => {
@@ -76,6 +71,55 @@ export function ShareYourScore({ roastData, overallScore }: ShareYourScoreProps)
     }
   }
 
+  const shareButtons = (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button variant="outline" size="sm" asChild>
+        <a href={xHref} target="_blank" rel="noopener noreferrer" aria-label="Share on X">
+          <Twitter className="size-4" />
+          X
+        </a>
+      </Button>
+      <Button variant="outline" size="sm" asChild>
+        <a
+          href={linkedInHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Share on LinkedIn"
+        >
+          <Linkedin className="size-4" />
+          LinkedIn
+        </a>
+      </Button>
+      <Button variant="outline" size="sm" type="button" onClick={handleCopy} aria-label="Copy post text">
+        {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+        Copy text
+      </Button>
+    </div>
+  );
+
+  if (compact) {
+    return (
+      <div
+        className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+        aria-label="Share report summary"
+      >
+        <div className="flex items-center gap-2">
+          <input
+            id="share-anonymize-domain-compact"
+            type="checkbox"
+            checked={anonymize}
+            onChange={(e) => setAnonymize(e.target.checked)}
+            className="size-4 shrink-0 rounded border-border text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <Label htmlFor="share-anonymize-domain-compact" className="text-xs font-normal text-muted-foreground">
+            Hide domain
+          </Label>
+        </div>
+        {shareButtons}
+      </div>
+    );
+  }
+
   return (
     <section className="w-full space-y-6" aria-labelledby="share-your-score-heading">
       <div>
@@ -91,7 +135,7 @@ export function ShareYourScore({ roastData, overallScore }: ShareYourScoreProps)
         </p>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
           <input
             id="share-anonymize-domain"
@@ -107,29 +151,7 @@ export function ShareYourScore({ roastData, overallScore }: ShareYourScoreProps)
             </span>
           </Label>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" asChild>
-            <a href={xHref} target="_blank" rel="noopener noreferrer" aria-label="Share on X">
-              <Twitter className="size-4" />
-              X
-            </a>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={linkedInHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Share on LinkedIn"
-            >
-              <Linkedin className="size-4" />
-              LinkedIn
-            </a>
-          </Button>
-          <Button variant="outline" size="sm" type="button" onClick={handleCopy} aria-label="Copy post text">
-            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-            Copy text
-          </Button>
-        </div>
+        {shareButtons}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -140,9 +162,7 @@ export function ShareYourScore({ roastData, overallScore }: ShareYourScoreProps)
           improvement={improvement}
         />
         <div className="flex flex-col gap-4">
-          <p className="text-xs text-muted-foreground">
-            Compare your score against similar sites.
-          </p>
+          <p className="text-xs text-muted-foreground">Compare your score against similar sites.</p>
           <div>
             <Label htmlFor="share-post-text" className="text-label text-muted-foreground">
               Post text

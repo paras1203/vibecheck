@@ -305,6 +305,24 @@ export function getReportCoreStyles(): string {
     table.report-matrix thead {
       display: table-header-group;
     }
+    table.implementation-checklist-table td:first-child,
+    table.pillar-audit-matrix td:first-child {
+      font-family: inherit;
+      font-weight: 600;
+    }
+    table.pillar-audit-matrix td:first-child {
+      word-wrap: break-word;
+    }
+    table.implementation-checklist-table td:first-child {
+      font-weight: 500;
+    }
+    table.pillar-audit-matrix th,
+    table.pillar-audit-matrix td,
+    table.experiment-backlog-table th,
+    table.experiment-backlog-table td {
+      vertical-align: top;
+      word-wrap: break-word;
+    }
     .report-verdict {
       font-family: "JetBrains Mono", ui-monospace, monospace;
       font-size: 0.8125rem;

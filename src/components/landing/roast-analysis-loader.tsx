@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { ROAST_ANALYSIS_MESSAGES } from "@/lib/roast-analysis-messages";
+import { aggregateLoaderPhaseTimings } from "@/lib/roast-loader-phase-timings";
 import { cn } from "@/lib/utils";
 
 const MESSAGES = ROAST_ANALYSIS_MESSAGES;
@@ -15,6 +17,83 @@ const CATCH_UP_MS = 130;
 /** Step 20 (final row) hold before teaser reveal */
 const FINAL_HOLD_MS = 15_000;
 const LAST_PREFINAL_INDEX = MESSAGES.length - 2;
+
+export type TimingRow = {
+  stepIndex: number;
+  seconds: number;
+};
+
+function RoastStepTimingHud({ timingRows }: { timingRows: TimingRow[] }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const phaseRows = useMemo(
+    () => aggregateLoaderPhaseTimings(timingRows),
+    [timingRows],
+  );
+
+  const timingTotal = useMemo(
+    () => Math.round(timingRows.reduce((a, r) => a + r.seconds, 0) * 100) / 100,
+    [timingRows],
+  );
+
+  const phaseSum = useMemo(
+    () => Math.round(phaseRows.reduce((a, r) => a + r.seconds, 0) * 100) / 100,
+    [phaseRows],
+  );
+
+  if (!mounted || timingRows.length === 0) return null;
+
+  return createPortal(
+    <div
+      className="fixed right-4 top-4 z-[200] max-h-[min(52vh,28rem)] w-[min(92vw,22rem)] overflow-y-auto overscroll-contain rounded-lg border border-border bg-background/98 p-3 shadow-surface-sm backdrop-blur-sm"
+      aria-live="polite"
+    >
+      <p className="border-b border-border-muted pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+        Phase timing (s)
+      </p>
+      <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
+        Eight rollup buckets for the URL → report flow. Open per-step detail to see which loader line
+        was active (long rows usually mean waiting on the network).
+      </p>
+      <ul className="mt-2 space-y-1.5 text-xs leading-snug text-foreground">
+        {phaseRows.map((r) => (
+          <li
+            key={r.label}
+            className="flex justify-between gap-2 border-b border-border-muted/60 pb-1.5 last:border-0 last:pb-0"
+          >
+            <span className="min-w-0 flex-1 break-words text-muted-foreground">{r.label}</span>
+            <span className="shrink-0 tabular-nums font-medium">{r.seconds}s</span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 border-t border-border-muted pt-2 text-[10px] text-muted-foreground">
+        Phases Σ {phaseSum}s · Steps Σ {timingTotal}s
+      </p>
+      <details className="mt-2 rounded-md border border-border-muted bg-muted/15 px-2 py-1.5">
+        <summary className="cursor-pointer select-none text-[10px] font-medium text-foreground">
+          Per-step detail
+        </summary>
+        <ul className="mt-2 max-h-[28vh] space-y-2 overflow-y-auto overscroll-contain border-t border-border-muted pt-2">
+          {timingRows.map((r, i) => (
+            <li
+              key={`${r.stepIndex}-${i}`}
+              className="flex flex-col gap-0.5 border-b border-border-muted/50 pb-2 last:border-0 last:pb-0"
+            >
+              <span className="break-words text-[11px] text-foreground">{MESSAGES[r.stepIndex]}</span>
+              <span className="text-[10px] font-medium tabular-nums text-muted-foreground">
+                {r.seconds}s
+              </span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </div>,
+    document.body,
+  );
+}
 
 type RoastAnalysisLoaderProps = {
   isActive: boolean;
@@ -28,12 +107,15 @@ export function RoastAnalysisLoader({
   onReveal,
 }: RoastAnalysisLoaderProps) {
   const [step, setStep] = useState(0);
+  const [timingRows, setTimingRows] = useState<TimingRow[]>([]);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const finishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onRevealRef = useRef(onReveal);
   const finishScheduledRef = useRef(false);
   const stepRef = useRef(0);
   const activeRowRef = useRef<HTMLLIElement>(null);
+  const stepEnteredAtRef = useRef(0);
+  const prevStepRef = useRef<number | null>(null);
 
   useEffect(() => {
     onRevealRef.current = onReveal;
@@ -42,6 +124,29 @@ export function RoastAnalysisLoader({
   useEffect(() => {
     stepRef.current = step;
   }, [step]);
+
+  useEffect(() => {
+    if (!isActive) {
+      setTimingRows([]);
+      prevStepRef.current = null;
+      return;
+    }
+    const now = performance.now();
+    stepEnteredAtRef.current = now;
+    prevStepRef.current = step;
+  }, [isActive]);
+
+  useEffect(() => {
+    if (!isActive) return;
+    const now = performance.now();
+    const prev = prevStepRef.current;
+    if (prev !== null && prev !== step) {
+      const seconds = Math.round(((now - stepEnteredAtRef.current) / 1000) * 100) / 100;
+      setTimingRows((rows) => [...rows, { stepIndex: prev, seconds }]);
+    }
+    prevStepRef.current = step;
+    stepEnteredAtRef.current = now;
+  }, [step, isActive]);
 
   useEffect(() => {
     if (!isActive || analysisComplete) return;
@@ -121,19 +226,21 @@ export function RoastAnalysisLoader({
   if (!isActive) return null;
 
   return (
-    <div className="flex w-full max-w-2xl flex-col gap-4">
-      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
-          Step {displayStep + 1} of {MESSAGES.length}
-        </span>
-        <span>
-          {doneCount} complete
-          {analysisComplete && step === MESSAGES.length - 1 ? " · Finalizing…" : ""}
-        </span>
-      </div>
-      <Progress value={progressPct} className="h-2" />
-      <div className="max-h-[min(52vh,22rem)] space-y-2 overflow-y-auto overscroll-contain rounded-md border border-border-muted bg-surface-2/20 py-2 pl-2 pr-1">
-        <ul className="space-y-2 text-left">
+    <>
+      {timingRows.length > 0 ? <RoastStepTimingHud timingRows={timingRows} /> : null}
+      <div className="flex w-full flex-col gap-3">
+        <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <span>
+            Step {displayStep + 1} of {MESSAGES.length}
+          </span>
+          <span>
+            {doneCount} complete
+            {analysisComplete && step === MESSAGES.length - 1 ? " · Finalizing…" : ""}
+          </span>
+        </div>
+        <Progress value={progressPct} className="h-1.5 sm:h-2" />
+        <div className="max-h-[min(42vh,17rem)] space-y-2 overflow-y-auto overscroll-contain rounded-md border border-border-muted bg-surface-2/20 py-2 pl-2 pr-1 sm:max-h-[min(48vh,20rem)]">
+          <ul className="space-y-2 text-left">
           {MESSAGES.map((msg, i) => {
             const done = i < displayStep;
             const active = i === displayStep;
@@ -144,7 +251,7 @@ export function RoastAnalysisLoader({
                 data-step-index={i}
                 ref={active ? activeRowRef : undefined}
                 className={cn(
-                  "flex gap-3 rounded-md border px-3 py-2.5 text-sm transition-colors sm:text-[15px]",
+                  "flex gap-3 rounded-md border px-2.5 py-2 text-xs transition-colors sm:px-3 sm:py-2.5 sm:text-[13px]",
                   pending && "border-border-muted/50 bg-muted/5 text-muted-foreground/45",
                   done && "border-border-muted bg-muted/20 text-muted-foreground",
                   active &&
@@ -170,8 +277,9 @@ export function RoastAnalysisLoader({
               </li>
             );
           })}
-        </ul>
+          </ul>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

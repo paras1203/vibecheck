@@ -13,9 +13,8 @@ function billingPath(plan: "pro") {
   return `/checkout?plan=${plan}`;
 }
 
-function checkoutHref(user: User | null, plan: "pro") {
-  const path = billingPath(plan);
-  return user ? path : `/login?next=${encodeURIComponent(path)}`;
+function checkoutHref(_user: User | null, plan: "pro") {
+  return billingPath(plan);
 }
 
 function secondaryDemoLink(): {
