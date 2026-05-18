@@ -61,14 +61,14 @@ export function mergeLegacyRoastHistoryIntoUser(uid: string): void {
   const legacy = readRaw(undefined);
   if (!legacy.length) return;
   const merged = listRoastHistory(uid);
-  writeRaw(uid, merged.slice(0, 50));
+  writeRaw(uid, merged.slice(0, 10));
   localStorage.removeItem(LEGACY_KEY);
 }
 
 export function upsertRoastHistory(
   uid: string | undefined,
   entry: RoastHistoryEntry,
-  maxEntries = 50
+  maxEntries = 10
 ): void {
   const prev = readRaw(uid);
   const without = prev.filter((e) => e.id !== entry.id);

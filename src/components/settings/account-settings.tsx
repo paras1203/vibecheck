@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Pencil, Check } from "lucide-react";
+import { onboardingGoalLabel, onboardingRoleLabel } from "@/lib/onboarding-options";
 
 function isGoogleOnlySignIn(firebaseUser: FirebaseUser | null): boolean {
   if (!firebaseUser?.providerData?.length) return false;
@@ -63,8 +64,9 @@ export function AccountSettings() {
       <div className="space-y-2">
         <Label>Name</Label>
         {editingName ? (
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
             <Input
+              className="h-9 w-full max-w-[50%] min-w-[12rem]"
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={savingName}
@@ -79,11 +81,11 @@ export function AccountSettings() {
                 }
               }}
             />
-            <div className="flex gap-2">
+            <div className="flex shrink-0 gap-1">
               <Button
                 type="button"
                 size="sm"
-                className="gap-2"
+                className="gap-1 px-2"
                 onClick={() => void onSaveName()}
                 disabled={savingName || !name.trim()}
               >
@@ -94,6 +96,7 @@ export function AccountSettings() {
                 type="button"
                 size="sm"
                 variant="ghost"
+                className="px-2"
                 onClick={() => {
                   setName(user?.displayName ?? "");
                   setEditingName(false);
@@ -122,6 +125,26 @@ export function AccountSettings() {
           </div>
         )}
       </div>
+
+      {(user?.onboardingRole || user?.onboardingGoal) && user?.onboardingCompleted ? (
+        <div className="space-y-2 rounded-lg border border-border-muted bg-muted/20 px-3 py-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Setup preferences
+          </p>
+          {user.onboardingRole ? (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Role: </span>
+              <span className="text-foreground">{onboardingRoleLabel(user.onboardingRole)}</span>
+            </div>
+          ) : null}
+          {user.onboardingGoal ? (
+            <div className="text-sm">
+              <span className="text-muted-foreground">Goal: </span>
+              <span className="text-foreground">{onboardingGoalLabel(user.onboardingGoal)}</span>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="space-y-2">
         <Label htmlFor="settings-email">Email</Label>

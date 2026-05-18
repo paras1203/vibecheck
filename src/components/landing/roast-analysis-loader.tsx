@@ -15,7 +15,7 @@ const EARLY_STEP_MS = Math.round(42250 / (MESSAGES.length - 2));
 /** Fast-forward remaining early steps when the API returns early */
 const CATCH_UP_MS = 130;
 /** Step 20 (final row) hold before teaser reveal */
-const FINAL_HOLD_MS = 15_000;
+export const ROAST_LOADER_FINAL_HOLD_MS = 15_000;
 const LAST_PREFINAL_INDEX = MESSAGES.length - 2;
 
 export type TimingRow = {
@@ -99,12 +99,15 @@ type RoastAnalysisLoaderProps = {
   isActive: boolean;
   analysisComplete: boolean;
   onReveal: () => void;
+  /** Delay after reaching final step before `onReveal` (default 15s roast; use ~0 for free scan). */
+  finalizeDelayMs?: number;
 };
 
 export function RoastAnalysisLoader({
   isActive,
   analysisComplete,
   onReveal,
+  finalizeDelayMs = ROAST_LOADER_FINAL_HOLD_MS,
 }: RoastAnalysisLoaderProps) {
   const [step, setStep] = useState(0);
   const [timingRows, setTimingRows] = useState<TimingRow[]>([]);
@@ -179,7 +182,7 @@ export function RoastAnalysisLoader({
       if (finishTimerRef.current) clearTimeout(finishTimerRef.current);
       finishTimerRef.current = setTimeout(() => {
         if (!cancelled) onRevealRef.current();
-      }, FINAL_HOLD_MS);
+      }, finalizeDelayMs);
     };
 
     const atComplete = stepRef.current;
@@ -210,7 +213,7 @@ export function RoastAnalysisLoader({
       }
       finishScheduledRef.current = false;
     };
-  }, [isActive, analysisComplete]);
+  }, [isActive, analysisComplete, finalizeDelayMs]);
 
   const displayStep = step;
   const progressPct = Math.min(100, ((displayStep + 1) / MESSAGES.length) * 100);

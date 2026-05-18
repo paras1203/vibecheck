@@ -825,4 +825,33 @@ Hero/comparison/pricing `onRoast` stores pending URL in `sessionStorage`, then `
 ### Home → Free scan
 User enters URL → **Free conversion scan** → `POST /api/free-report` → `sessionStorage` → `/free-report` renders `FreeReportResults` with upsell to full roast/billing.
 
+### Settings / signup / reports (delta)
+- `PATCH /api/user/profile` — sync `displayName` to Firestore `users/{uid}` + Firebase Auth (`AuthContext.updateDisplayName`).
+- **`/settings`**: incomplete onboarding redirects to **`/onboarding`** (parity with dashboard/home).
+- **`AccountSettings`**: read-only onboarding role/goal; narrower name field + tighter Save/Cancel.
+- **`credits-config`**: new profile baseline credits **0**; promo bonus when `NEXT_PUBLIC_PROMO_ACTIVE=true`.
+- Reports: checklist tasks use full quick-win problem text; upgrade panel Before/After/impact wrap without 140-char truncation.
+
+**Confirmed:** This structure log was appended.
+
+---
+
+## 2026-05-14 (roast-session + TTL) - # Project Structure, Site Map, Workflows & UI Comps
+
+## 1. Directory Structure (Source)
+- `src/context/RoastSessionContext.tsx`, `src/components/providers/roast-session-root.tsx` — unified roast / free-scan job state + overlays in root layout.
+- `src/components/landing/free-scan-generation-overlay.tsx` — free scan full-screen UX; loader supports `finalizeDelayMs`.
+- `src/lib/roast-cloud-retention-ms.ts`, `expiresAt` on `POST .../roast-cloud-sync`; lazy expiry purge in **`GET .../roast-cloud-list`** + **`GET .../roast-cloud-payload`** (`src/app/api/user/roast-cloud-*.ts`).
+- `src/lib/roast-cloud-client.ts` — **`ROAST_HISTORY_DISPLAY_CAP`** (10) + **`purgedClientRoastIds`** handling from list API.
+
+## 3. Workflows (Chronology)
+### Cross-route overlays
+`/home`, default landing (`themed-default-landing`), `/v/a1`…`/v/c3`: local **`RoastGenerationOverlay` / credit UI removed**; global provider owns progress until teaser or `/free-report` redirect.
+
+### History
+Per-user **`localStorage` history cap 10** via `upsertRoastHistory` default; merged cloud list surfaced as **≤10**. Expired mirrored roasts are deleted server-side then pruned locally using **`purgedClientRoastIds`**.
+
+## 7. Component inventory (delta)
+- Credit shortfall UX: **`InsufficientCreditsDialog`** (centered compact tile overlay).
+
 **Confirmed:** This structure log was appended.

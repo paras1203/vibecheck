@@ -44,4 +44,13 @@ describe("buildImplementationChecklist", () => {
     );
     expect(buildImplementationChecklist(qw, weakRadar).length).toBe(10);
   });
+
+  it("keeps full quick-win problem text in the task column (no mid-string ellipsis caps)", () => {
+    const longProblem = `${"word ".repeat(90)}trail-end-marker`;
+    const checklist = buildImplementationChecklist([
+      { elementName: "Hero", problem: longProblem, fix: "Fix" },
+    ]);
+    expect(checklist[0]?.task).toContain("trail-end-marker");
+    expect(checklist[0]?.task).not.toMatch(/…$/);
+  });
 });

@@ -66,9 +66,9 @@ export function buildImplementationChecklist(
     const name = (w.elementName || w.title || "Audit item").trim();
     const problem = (w.problem || "").trim();
     const fix = (w.fix || "").trim();
-    const task = problem ? `${name}: ${problem.slice(0, 140)}`.trim() : `Implement remediation for ${name}`;
+    const task = problem ? `${name}: ${problem}`.trim() : `Implement remediation for ${name}`;
     out.push({
-      task: task.length > 180 ? `${task.slice(0, 177)}…` : task,
+      task,
       owner: inferOwner(name),
       effort: inferEffort(name + fix, fix.length),
     });

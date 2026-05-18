@@ -6,11 +6,11 @@ export function coerceUserCreditsFromDocument(raw: unknown): number {
   return readCreditsFromFirestoreValue(raw);
 }
 
-/** Credits assigned to brand-new Firestore user profiles (not existing docs). */
+/** Credits assigned to brand-new Firestore user profiles (not existing docs). Baseline 0; promo adds bonus when NEXT_PUBLIC_PROMO_ACTIVE is true. */
 export function newUserCreditsDefault(): number {
   const raw = process.env.NEXT_PUBLIC_DEFAULT_NEW_USER_CREDITS;
-  const base = raw !== undefined && raw !== "" ? parseInt(raw, 10) : 20;
-  const safeBase = Number.isFinite(base) && base >= 0 ? base : 20;
+  const base = raw !== undefined && raw !== "" ? parseInt(raw, 10) : 0;
+  const safeBase = Number.isFinite(base) && base >= 0 ? base : 0;
   if (process.env.NEXT_PUBLIC_PROMO_ACTIVE !== "true") return safeBase;
   const bonusRaw = process.env.NEXT_PUBLIC_PROMO_BONUS_ROAST_CREDITS;
   const bonus =

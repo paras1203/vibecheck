@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useAuthenticatedRoastFlow, type RoastPhase } from "@/hooks/use-authenticated-roast-flow";
+import type { RoastPhase } from "@/context/RoastSessionContext";
+import { useAuthenticatedRoastFlow } from "@/hooks/use-authenticated-roast-flow";
 import { useAuth } from "@/context/AuthContext";
 import { stashPendingAuditUrl } from "@/lib/pending-audit-url";
 
@@ -36,20 +37,13 @@ export function useLandingRoast() {
     if (!firebaseUser) {
       setError(null);
       stashPendingAuditUrl(url);
-      router.push("/login?next=/onboarding");
-      return;
-    }
-
-    if (user?.firestoreSynced && !user.onboardingCompleted) {
-      setError(null);
-      stashPendingAuditUrl(url);
-      router.push("/onboarding");
+      router.push("/login?next=/home");
       return;
     }
 
     setError(null);
     await startAuthenticatedRoast();
-  }, [url, firebaseUser, user, router, setError, startAuthenticatedRoast]);
+  }, [url, firebaseUser, router, setError, startAuthenticatedRoast]);
 
   const roastForm = useMemo(
     () => ({
@@ -64,8 +58,6 @@ export function useLandingRoast() {
 
   return {
     user,
-    url,
-    setUrl,
     roastPhase,
     analysisComplete,
     loaderKey,

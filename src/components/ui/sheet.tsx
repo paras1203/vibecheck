@@ -115,14 +115,12 @@ const SheetTitle = React.forwardRef<
 SheetTitle.displayName = SheetPrimitive.Title.displayName
 
 const SheetDescription = React.forwardRef<
-  React.ElementRef<typeof SheetPrimitive.Description>,
+  HTMLDivElement,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <SheetPrimitive.Description
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
+  <SheetPrimitive.Description asChild>
+    <div ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+  </SheetPrimitive.Description>
 ))
 SheetDescription.displayName = SheetPrimitive.Description.displayName
 

@@ -70,7 +70,7 @@ for (const r of rows) {
 }
 
 if (bad.length) {
-  console.log(`\n${bad.length} missing — fix .env.local then run: npm run verify:billing`);
+  console.log(`\n${bad.length} missing — fix .env.local then run: npm run verify-billing`);
   console.log("After deploy, GET /api/health/billing should return { ok: true }.");
   process.exit(1);
 }

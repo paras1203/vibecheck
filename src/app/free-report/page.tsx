@@ -55,7 +55,6 @@ function FreeReportPageContent() {
     }
     try {
       const data = await runFreeReport(url.trim(), "desktop");
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       setPayload(data);
       router.replace("/free-report", { scroll: false });
     } catch (e) {

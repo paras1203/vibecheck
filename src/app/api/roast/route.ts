@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminAuth } from "@/lib/firebase-admin";
 import { roastGenerationCreditCost } from "@/lib/roast-credit-cost";
+import { isPreviewRoastFree } from "@/lib/credits-config";
 import {
   debitRoastCreditsIfSufficient,
   refundRoastCredits,
@@ -1641,6 +1642,7 @@ const logRoastTiming =
 export async function POST(request: NextRequest) {
   let chargeUid: string | null = null;
   let chargeCost = 0;
+  let roastCreditsWereDebited = false;
   let roastLogUrl = "";
   let roastLogDevice: "desktop" | "mobile" = "desktop";
 
@@ -1698,7 +1700,10 @@ export async function POST(request: NextRequest) {
         );
       }
       chargeCost = roastGenerationCreditCost();
-      if (chargeCost > 0) {
+      const debitForThisRoast =
+        chargeCost > 0 && !isPreviewRoastFree();
+
+      if (debitForThisRoast) {
         const debit = await debitRoastCreditsIfSufficient(chargeUid, chargeCost);
         if (!debit.ok) {
           if (debit.reason === "no_profile") {
@@ -1729,6 +1734,7 @@ export async function POST(request: NextRequest) {
           );
         }
         creditsRemaining = debit.creditsAfter;
+        roastCreditsWereDebited = true;
       }
     }
 
@@ -1984,7 +1990,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     );
   } catch (error: unknown) {
-    if (chargeUid && chargeCost > 0) {
+    if (chargeUid && roastCreditsWereDebited && chargeCost > 0) {
       await refundRoastCredits(chargeUid, chargeCost).catch(() => {
         /* best-effort refund */
       });

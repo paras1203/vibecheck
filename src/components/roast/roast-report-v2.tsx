@@ -622,16 +622,18 @@ export function RoastReportV2({
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Before → After (directional)</CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-              <div className="rounded-lg border border-border-muted bg-muted/30 p-3">
+            <CardContent className="grid min-w-0 gap-3 text-sm md:grid-cols-2">
+              <div className="min-w-0 rounded-lg border border-border-muted bg-muted/30 p-3">
                 <p className="text-caption font-medium text-muted-foreground">Before</p>
-                <p className="mt-1">
+                <p className="mt-1 break-words leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap">
                   {beforeAfterWin.problem || messagingLayer.highPrioritySignals[0] || "—"}
                 </p>
               </div>
-              <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+              <div className="min-w-0 rounded-lg border border-primary/25 bg-primary/5 p-3">
                 <p className="text-caption font-medium text-muted-foreground">After</p>
-                <p className="mt-1">{beforeAfterWin.fix || messagingLayer.highPrioritySignals[1] || "—"}</p>
+                <p className="mt-1 break-words leading-relaxed [overflow-wrap:anywhere] whitespace-pre-wrap">
+                  {beforeAfterWin.fix || messagingLayer.highPrioritySignals[1] || "—"}
+                </p>
               </div>
             </CardContent>
           </Card>

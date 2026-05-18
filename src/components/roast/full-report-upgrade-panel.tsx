@@ -14,12 +14,6 @@ import {
 } from "@/lib/report-copy";
 import { UnlockFullReportButton } from "@/components/roast/unlock-full-report-button";
 
-function truncateText(text: string, max: number): string {
-  const t = text.trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
-}
-
 const MASK = "██████";
 
 export interface FullReportUpgradePanelProps {
@@ -52,12 +46,12 @@ export function FullReportUpgradePanel({
       ? categoryTeasers.slice(0, 3)
       : ["Conversion signals", "Trust & proof", "Above-fold clarity"];
   const before =
-    beforeSnippet && beforeSnippet.trim().length > 0
-      ? truncateText(beforeSnippet, 140)
+    beforeSnippet?.trim().length
+      ? beforeSnippet.trim()
       : "Hero value prop competes with secondary actions—visitors hesitate before the primary CTA.";
   const after =
-    afterSnippet && afterSnippet.trim().length > 0
-      ? truncateText(afterSnippet, 140)
+    afterSnippet?.trim().length
+      ? afterSnippet.trim()
       : "Tighten the headline-to-CTA path so the next step is obvious in one screen.";
 
   return (
@@ -113,20 +107,20 @@ export function FullReportUpgradePanel({
           </div>
         </div>
 
-        <Card className="border-border/80 bg-card/80 shadow-surface-xs backdrop-blur-sm">
+        <Card className="min-w-0 border-border/80 bg-card/80 shadow-surface-xs backdrop-blur-sm">
           <CardContent className="space-y-4 p-5">
             <p className="text-caption font-medium uppercase tracking-wide text-muted-foreground">
               Premium preview
             </p>
-            <div className="flex flex-col items-center gap-2 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex min-w-0 flex-col items-center gap-2 sm:flex-row sm:items-start sm:gap-4">
               <RadialChart value={rounded} size={96} strokeWidth={10} showLabel={false} />
-              <div className="text-center sm:text-left">
+              <div className="min-w-0 text-center sm:text-left">
                 <p className="font-mono text-2xl font-semibold tabular-nums text-primary">
                   {rounded}
                   <span className="text-base font-normal text-muted-foreground">/100</span>
                 </p>
                 <p className="text-xs font-medium text-foreground">{verdictLabel}</p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{impactLine}</p>
+                <p className="mt-1 break-words text-[11px] leading-snug text-muted-foreground">{impactLine}</p>
               </div>
             </div>
 
@@ -149,13 +143,15 @@ export function FullReportUpgradePanel({
               ))}
             </div>
 
-            <div className="rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
+            <div className="min-w-0 rounded-lg border border-primary/20 bg-primary/[0.04] p-3">
               <p className="text-[11px] font-medium text-primary">Before → after (sample)</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">Before:</span> {before}
+              <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                <span className="font-medium text-foreground">Before:</span>{" "}
+                <span className="whitespace-pre-wrap">{before}</span>
               </p>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">After:</span> {after}
+              <p className="mt-1.5 break-words text-xs leading-relaxed text-muted-foreground [overflow-wrap:anywhere]">
+                <span className="font-medium text-foreground">After:</span>{" "}
+                <span className="whitespace-pre-wrap">{after}</span>
               </p>
             </div>
 

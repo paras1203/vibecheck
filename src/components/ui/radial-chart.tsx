@@ -1,7 +1,6 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { motion } from "motion/react";
 
 interface RadialChartProps {
   value: number;
@@ -40,7 +39,7 @@ export function RadialChart({
           fill="none"
           className="text-muted opacity-20"
         />
-        <motion.circle
+        <circle
           cx={size / 2}
           cy={size / 2}
           r={radius}
@@ -51,9 +50,6 @@ export function RadialChart({
           strokeDashoffset={offset}
           strokeLinecap="round"
           className="text-primary"
-          initial={{ strokeDashoffset: circumference }}
-          animate={{ strokeDashoffset: offset }}
-          transition={{ duration: 1, ease: "easeOut" }}
         />
       </svg>
       {showLabel && (

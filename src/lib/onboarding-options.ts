@@ -18,3 +18,13 @@ export const ONBOARDING_GOAL_OPTIONS = [
 
 export type OnboardingRoleId = (typeof ONBOARDING_ROLE_OPTIONS)[number]["id"];
 export type OnboardingGoalId = (typeof ONBOARDING_GOAL_OPTIONS)[number]["id"];
+
+export function onboardingRoleLabel(id: string | undefined): string {
+  if (!id?.trim()) return "—";
+  return ONBOARDING_ROLE_OPTIONS.find((o) => o.id === id)?.label ?? id;
+}
+
+export function onboardingGoalLabel(id: string | undefined): string {
+  if (!id?.trim()) return "—";
+  return ONBOARDING_GOAL_OPTIONS.find((o) => o.id === id)?.label ?? id;
+}

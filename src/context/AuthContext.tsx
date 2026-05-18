@@ -12,31 +12,33 @@ import {
 import {
   User as FirebaseUser,
   onAuthStateChanged,
+  reload,
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider,
+  getAdditionalUserInfo,
   signOut,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile,
   sendPasswordResetEmail,
   type ActionCodeSettings,
   sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
 } from "firebase/auth";
-import { doc, getDoc, setDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
 import {
   getFirebaseAuth,
-  getFirestoreClient,
   hydrateFirebaseClientFromApi,
   isFirebaseClientConfigured,
 } from "@/lib/firebase";
 import { mergeLegacyRoastHistoryIntoUser } from "@/lib/roast-history";
-import { coerceUserCreditsFromDocument, newUserCreditsDefault } from "@/lib/credits-config";
-import { parseOnboardingCompletedFromFirestore } from "@/lib/onboarding-firestore";
-import { isMasterAdminEmail } from "@/lib/admin";
+import { newUserCreditsDefault } from "@/lib/credits-config";
+import type { UserProfilePayload } from "@/lib/user-profile-from-firestore";
+import {
+  clearPostSignupOnboardingPending,
+  setPostSignupOnboardingPending,
+} from "@/lib/post-signup-onboarding";
 
 export interface User {
   uid: string;
@@ -86,10 +88,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function parsePendingHomeMessage(raw: unknown): string | undefined {
-  if (typeof raw !== "string") return undefined;
-  const t = raw.trim();
-  return t.length ? t : undefined;
+function profilePayloadToUser(
+  profile: UserProfilePayload,
+  firebaseUser: FirebaseUser,
+): User {
+  return {
+    uid: profile.uid,
+    email: profile.email || firebaseUser.email || "",
+    credits: profile.credits,
+    plan: profile.plan,
+    displayName: profile.displayName ?? firebaseUser.displayName ?? undefined,
+    photoURL: profile.photoURL ?? firebaseUser.photoURL ?? undefined,
+    firestoreSynced: true,
+    onboardingCompleted: profile.onboardingCompleted,
+    onboardingRole: profile.onboardingRole,
+    onboardingGoal: profile.onboardingGoal,
+    pendingHomeMessage: profile.pendingHomeMessage,
+    ...(profile.guestCheckoutEmail ? { guestCheckoutEmail: profile.guestCheckoutEmail } : {}),
+  };
 }
 
 function mapAuthError(error: unknown): Error {
@@ -143,79 +159,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const syncUserWithFirestore = useCallback(async (firebaseUser: FirebaseUser) => {
     try {
       setIsSyncing(true);
-      const userRef = doc(getFirestoreClient(), "users", firebaseUser.uid);
-      const userSnap = await getDoc(userRef);
-
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const rawPlan = userData.plan;
-        const normalizedPlan =
-          typeof rawPlan === "string"
-            ? (["free", "pro", "agency"].includes(rawPlan.toLowerCase())
-                ? (rawPlan.toLowerCase() as User["plan"])
-                : "free")
-            : "free";
-        const onboardingCompleted = parseOnboardingCompletedFromFirestore(
-          userData.onboardingCompleted,
-        );
-        const roleRaw = userData.onboardingRole;
-        const goalRaw = userData.onboardingGoal;
-        const guestMail =
-          typeof userData.guestCheckoutEmail === "string" ? userData.guestCheckoutEmail.trim() : "";
-        const credits = coerceUserCreditsFromDocument(userData.credits);
-        setUser({
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || "",
-          credits,
-          plan: normalizedPlan,
-          displayName: firebaseUser.displayName || userData.displayName,
-          photoURL: firebaseUser.photoURL || userData.photoURL,
-          firestoreSynced: true,
-          onboardingCompleted,
-          onboardingRole: typeof roleRaw === "string" ? roleRaw : undefined,
-          onboardingGoal: typeof goalRaw === "string" ? goalRaw : undefined,
-          pendingHomeMessage: parsePendingHomeMessage(userData.pendingHomeMessage),
-          ...(guestMail ? { guestCheckoutEmail: guestMail } : {}),
-        });
-        mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
-        setIsSyncing(false);
-        setLoading(false);
-        return { firestoreSynced: true as const, credits };
-      } else {
-        const starter = newUserCreditsDefault();
-        const email = firebaseUser.email || "";
-        const master = isMasterAdminEmail(email);
-        const plan: User["plan"] = master ? "pro" : "free";
-        const newUser: User = {
-          uid: firebaseUser.uid,
-          email,
-          credits: starter,
-          plan,
-          displayName: firebaseUser.displayName || undefined,
-          photoURL: firebaseUser.photoURL || undefined,
-          firestoreSynced: true,
-          onboardingCompleted: false,
-        };
-
-        await setDoc(userRef, {
-          uid: newUser.uid,
-          email: newUser.email,
-          credits: newUser.credits,
-          plan: newUser.plan,
-          displayName: newUser.displayName,
-          photoURL: newUser.photoURL,
-          onboardingCompleted: false,
-          ...(master ? { isMasterUser: true } : {}),
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-
-        setUser(newUser);
-        mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
-        setIsSyncing(false);
-        setLoading(false);
-        return { firestoreSynced: true as const, credits: starter };
+      const token = await firebaseUser.getIdToken();
+      const res = await fetch("/api/user/profile", {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = (await res.json()) as {
+        profile?: UserProfilePayload;
+        error?: string;
+        details?: string;
+      };
+      if (!res.ok || !data.profile) {
+        throw new Error(data.details || data.error || "Could not load profile");
       }
+
+      const syncedUser = profilePayloadToUser(data.profile, firebaseUser);
+      const credits = syncedUser.credits;
+      setUser(syncedUser);
+      mergeLegacyRoastHistoryIntoUser(firebaseUser.uid);
+      setIsSyncing(false);
+      setLoading(false);
+      return { firestoreSynced: true as const, credits };
     } catch (error) {
       console.error("Error syncing user with Firestore:", error);
       let resolvedCredits = 0;
@@ -273,7 +238,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setFirebaseConfigured(true);
 
       try {
-        await getRedirectResult(getFirebaseAuth());
+        const redirectCred = await getRedirectResult(getFirebaseAuth());
+        if (redirectCred) {
+          const info = getAdditionalUserInfo(redirectCred);
+          if (info?.isNewUser) setPostSignupOnboardingPending();
+        }
       } catch (e) {
         console.error("Google redirect sign-in error:", e);
       }
@@ -334,7 +303,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       setIsSyncing(true);
-      await signInWithPopup(getFirebaseAuth(), provider);
+      const cred = await signInWithPopup(getFirebaseAuth(), provider);
+      const info = getAdditionalUserInfo(cred);
+      if (info?.isNewUser) setPostSignupOnboardingPending();
     } catch (error: unknown) {
       const code =
         error &&
@@ -397,6 +368,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       await createUserWithEmailAndPassword(getFirebaseAuth(), email.trim(), password);
+      setPostSignupOnboardingPending();
     } catch (error: unknown) {
       throw mapAuthError(error);
     }
@@ -432,7 +404,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!email) {
       throw new Error("Email is required to complete sign-in.");
     }
-    await signInWithEmailLink(getFirebaseAuth(), email.trim(), href);
+    const linkCred = await signInWithEmailLink(getFirebaseAuth(), email.trim(), href);
+    const linkInfo = getAdditionalUserInfo(linkCred);
+    if (linkInfo?.isNewUser) setPostSignupOnboardingPending();
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("emailForSignIn");
     }
@@ -445,6 +419,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error signing out:", error);
     }
+    clearPostSignupOnboardingPending();
     setUser(null);
     setFirebaseUser(null);
   };
@@ -480,8 +455,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!fb) {
       throw new Error("Not signed in.");
     }
-    await updateProfile(fb, { displayName: trimmed });
-    setUser((u) => (u ? { ...u, displayName: trimmed, firestoreSynced: u.firestoreSynced } : u));
+    const token = await fb.getIdToken();
+    const res = await fetch("/api/user/profile", {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ displayName: trimmed }),
+    });
+    const data = (await res.json()) as { error?: string; details?: string };
+    if (!res.ok) {
+      throw new Error(data.details || data.error || "Could not update name.");
+    }
+    await reload(fb);
+    await syncUserWithFirestore(fb);
   };
 
   const sendPasswordResetToEmail = async (email: string) => {
@@ -509,11 +498,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const fb = getFirebaseAuth().currentUser;
     if (!fb || !user?.uid) return;
     try {
-      const userRef = doc(getFirestoreClient(), "users", fb.uid);
-      await updateDoc(userRef, {
-        pendingHomeMessage: deleteField(),
-        updatedAt: serverTimestamp(),
+      const token = await fb.getIdToken();
+      const res = await fetch("/api/user/dismiss-home-message", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "Could not dismiss message");
+      }
       setUser((u) => (u ? { ...u, pendingHomeMessage: undefined } : u));
     } catch (e) {
       console.error("dismissPendingHomeMessage:", e);
@@ -548,6 +542,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!res.ok) {
         throw new Error(data.details || data.error || "Could not save onboarding");
       }
+      clearPostSignupOnboardingPending();
       await syncUserWithFirestore(fb);
     },
     [syncUserWithFirestore],

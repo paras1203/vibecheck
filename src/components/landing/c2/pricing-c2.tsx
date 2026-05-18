@@ -57,7 +57,7 @@ export function PricingC2({ loading, onRoast, user }: PricingC2Props) {
                 {usdLanding(LANDING_FREE_TEST_USD)}
               </div>
               <p className="text-xs leading-snug text-muted-foreground">
-                Temporary headline for a live $0.10 test checkout (no extra credits).
+                Temporary headline for a live $0.50 test checkout (no extra credits).
               </p>
               <div className="h-6" />
               <ul className="flex-1 list-none space-y-3 text-muted-foreground">

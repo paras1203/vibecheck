@@ -34,7 +34,7 @@ export function creditsForPurchase(planId: PaidPlanId, unitQuantity: number): nu
   return PLAN_PURCHASE_CREDITS_PER_UNIT[planId] * unitQuantity;
 }
 
-export const CHECKOUT_FREE_TEST_USD = 0.1;
+export const CHECKOUT_FREE_TEST_USD = 0.5;
 
 /** Max selectable quantity per checkout (invoice size). */
 export const MAX_PRO_CHECKOUT_UNITS = 50;

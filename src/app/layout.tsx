@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SimulationProvider } from "@/context/SimulationContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { RoastSessionRoot } from "@/components/providers/roast-session-root";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -37,7 +38,7 @@ export default function RootLayout({
         <ThemeProvider defaultTheme="dark">
           <SimulationProvider>
             <AuthProvider>
-              {children}
+              <RoastSessionRoot>{children}</RoastSessionRoot>
               <Toaster />
             </AuthProvider>
           </SimulationProvider>

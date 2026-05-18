@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "verify:billing": "node scripts/verify-billing-prereqs.mjs"
+    "verify-billing": "node scripts/verify-billing-prereqs.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

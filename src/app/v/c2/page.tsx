@@ -1,7 +1,6 @@
 "use client";
 
 import { Navbar } from "@/components/navbar";
-import { RoastGenerationOverlay } from "@/components/landing/roast-generation-overlay";
 import { useLandingRoast } from "@/hooks/use-landing-roast";
 import { HeroC2 } from "@/components/landing/c2/hero-c2";
 import { TestimonialsC2 } from "@/components/landing/c2/testimonials-c2";
@@ -13,31 +12,11 @@ import { PricingC2 } from "@/components/landing/c2/pricing-c2";
 import { FooterC2 } from "@/components/landing/c2/footer-c2";
 
 export default function LandingC2Page() {
-  const {
-    user,
-    roastPhase,
-    analysisComplete,
-    loaderKey,
-    teaserContent,
-    accountCreditsLine,
-    handleLoaderReveal,
-    handleContinueToReport,
-    roastForm,
-    handleRoast,
-  } = useLandingRoast();
+  const { user, roastForm, handleRoast } = useLandingRoast();
 
   return (
     <div className="min-h-screen bg-[var(--lv-c2-bg)] text-foreground">
       <Navbar landingVisualId="c2" showLandingVariationSwitcher navMode="concept" tone="c2" />
-      <RoastGenerationOverlay
-        phase={roastPhase}
-        analysisComplete={analysisComplete}
-        loaderKey={loaderKey}
-        teaserContent={teaserContent}
-        accountCreditsLine={accountCreditsLine}
-        onReveal={handleLoaderReveal}
-        onContinueToReport={handleContinueToReport}
-      />
       <main>
         <HeroC2 roastForm={roastForm} />
         <TestimonialsC2 />

@@ -1,3 +1,13 @@
+## [2026-05-14] - # Settings onboarding gate + profile displayName API
+
+## 2. Workflow Differences (Current)
+**`/settings`**: mirrors dashboard/home — if **`firestoreSynced`** and **`onboardingCompleted`** is false, redirect **`/onboarding`**. **Manage account** name save → **`PATCH /api/user/profile`** (Firestore `users/{uid}.displayName` + Admin Auth update).
+
+## 6. Summary
+Same routes on mobile and desktop; onboarding cannot be skipped via deep link to Settings.
+
+---
+
 ## [2026-05-14] - # Login shell + onboarding 2-step to landing
 
 ## 1. Current State
@@ -406,5 +416,20 @@ Same routes on mobile and desktop; checkout reliability fix is shared.
 ### 2. Workflow Differences (Current)
 ### 2.x Free scan (test funnel)
 - `/home` adds **Free conversion scan** next to **Roast my site**; stores payload in `sessionStorage` and opens `/free-report`. Shared responsive shell (`AuthenticatedShell`).
+
+### 2.y Global roast sessions (persist across navigation)
+- **`RoastSessionProvider`** wraps app content (see `RoastSessionRoot` + `src/context/RoastSessionContext.tsx`) so **`POST /api/roast`** teaser flow and **`POST /api/free-report`** free scan keep the **same overlays** whether the URL is landing (`/`, `/v/*`) or workspace (`/home`); audits are not restarted on route change mid-flight.
+
+**Confirmed:** This log was appended.
+
+---
+
+## [2026-05-14 roast-session] - # Mobile vs Desktop: Workflow Architecture
+
+### 1.2 Layout & Shell
+`RoastSessionRoot` (`src/components/providers/roast-session-root.tsx`) → `RoastSessionProvider`; global overlays + centered credit tile (`InsufficientCreditsDialog` restyle).
+
+### 6. Summary
+Single-session roast + free scan UX across layouts; insufficient credits tile H+V centered.
 
 **Confirmed:** This log was appended.

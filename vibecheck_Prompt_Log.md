@@ -716,3 +716,17 @@
 > Create a free report button (free tools only) near the roast button; clicking runs only free tools; create a free report page showing all free audit details with commercial/sales logic so users see why to pay for the full audit; add free report menu in user side nav below settings. Goal: user feels their landing page must improve for conversion. Do not touch other workflows—new flow for testing only.
 
 **Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## [2026-05-14] - Roast persistence, credit tile, cloud history TTL (+ free-scan overlay continuity)
+**Category:** Feature Request / Architecture
+**Instruction:**
+> Credit status centered as a compact tile overlay; authenticated roast and free-scan jobs must persist across navigations (`RoastSessionProvider` overlays on landing/`/home` until teaser or `/free-report` redirect completes); **`Recent reports` last 10**; **paid cloud mirrored roasts** auto-expire (**~60 days** from `savedAt`, `expiresAt` on sync) with **`GET roast-cloud-list` lazy-delete** plus **`purgedClientRoastIds`** so **`localStorage` history + payload stubs** prune in sync.
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.
+
+## [2026-05-14] - Free preview roast: no credit gate
+**Category:** Core Logic
+**Instruction:**
+> Free roast process does not need credits: ignore the credit-check step; free roast can run regardless of credit balance or user type — implemented by skipping client preflight + server debit when `isPreviewRoastFree()` (`NEXT_PUBLIC_PREVIEW_ROAST_USES_CREDITS` is not `"true"`); error-path refunds only run when a debit actually occurred (`roastCreditsWereDebited`).
+
+**Constraint:** Confirmed this log entry was appended when completing this batch.

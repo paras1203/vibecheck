@@ -1,15 +1,21 @@
 import type { RoastHistoryEntry } from "@/lib/roast-history";
 
-export type CloudRoastListResponse = { entries: RoastHistoryEntry[] };
+export type CloudRoastListResponse = {
+  entries: RoastHistoryEntry[];
+  purgedClientRoastIds?: string[];
+};
 
-export async function fetchCloudRoastHistory(idToken: string): Promise<RoastHistoryEntry[]> {
+export async function fetchCloudRoastHistory(idToken: string): Promise<CloudRoastListResponse> {
   const res = await fetch("/api/user/roast-cloud-list", {
     credentials: "same-origin",
     headers: { Authorization: `Bearer ${idToken}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) return { entries: [], purgedClientRoastIds: [] };
   const data = (await res.json()) as CloudRoastListResponse;
-  return Array.isArray(data.entries) ? data.entries : [];
+  return {
+    entries: Array.isArray(data.entries) ? data.entries : [],
+    purgedClientRoastIds: Array.isArray(data.purgedClientRoastIds) ? data.purgedClientRoastIds : [],
+  };
 }
 
 export async function syncRoastPayloadToCloud(
@@ -39,9 +45,13 @@ export async function syncRoastPayloadToCloud(
   }
 }
 
+/** Max roster size after merge + sort when showing cloud-backed history together with local entries. */
+export const ROAST_HISTORY_DISPLAY_CAP = 10;
+
 export function mergeRoastHistoryEntries(
   local: RoastHistoryEntry[],
   cloud: RoastHistoryEntry[],
+  maxMerged = ROAST_HISTORY_DISPLAY_CAP,
 ): RoastHistoryEntry[] {
   const byId = new Map<string, RoastHistoryEntry>();
   for (const e of cloud) {
@@ -53,5 +63,5 @@ export function mergeRoastHistoryEntries(
       byId.set(e.id, e);
     }
   }
-  return Array.from(byId.values()).sort((a, b) => b.savedAt - a.savedAt);
+  return Array.from(byId.values()).sort((a, b) => b.savedAt - a.savedAt).slice(0, maxMerged);
 }

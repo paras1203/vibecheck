@@ -14,6 +14,7 @@ import {
   ONBOARDING_ROLE_OPTIONS,
 } from "@/lib/onboarding-options";
 import { clearPendingAuditUrl } from "@/lib/pending-audit-url";
+import { clearPostSignupOnboardingPending } from "@/lib/post-signup-onboarding";
 import { cn } from "@/lib/utils";
 
 type FieldKey = "displayName" | "role" | "goal";
@@ -40,9 +41,13 @@ export function ProductOnboardingScreen() {
   }, [user?.displayName]);
 
   useEffect(() => {
-    if (!ok || !user?.firestoreSynced || !user.onboardingCompleted) return;
+    clearPostSignupOnboardingPending();
+  }, []);
+
+  useEffect(() => {
+    if (!ok || isSyncing || !user?.firestoreSynced || !user.onboardingCompleted) return;
     router.replace("/");
-  }, [ok, user, router]);
+  }, [ok, user, router, isSyncing]);
 
   const validateStep = (s: number): Partial<Record<FieldKey, string>> => {
     const next: Partial<Record<FieldKey, string>> = {};

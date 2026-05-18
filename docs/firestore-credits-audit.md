@@ -12,7 +12,7 @@ Deployed **Security Rules are not tracked in this repository**. This document tr
 | `email` | string | Loaded with profile | Initial `setDoc` for **new** users only | Merge via Dodo verify if doc missing |
 | `credits` | number (coerced) | `coerceUserCreditsFromDocument` | **No direct updates** after signup | **`debitRoastCreditsIfSufficient`**, **`refundRoastCredits`**, **Dodo `verify`** |
 | `plan` | `"free"` \| `"pro"` \| `"agency"` | Normalized lowercase | **`setDoc` only initial `"free"`** | **Dodo `verify`** (merge after payment) |
-| `displayName`, `photoURL` | optional strings | Firebase profile + doc | Initial `setDoc` | — |
+| `displayName`, `photoURL` | optional strings | Firebase profile + doc | Initial `setDoc` | **`PATCH /api/user/profile`** (displayName merge + Auth) |
 | `createdAt`, `updatedAt` | timestamps | — | `serverTimestamp()` on create | `Date` / `FieldValue` on server routes |
 
 ---
@@ -20,7 +20,7 @@ Deployed **Security Rules are not tracked in this repository**. This document tr
 ## Client: `AuthContext`
 
 - **Read:** `getDoc(users/{uid})` on sign-in; sets `user.credits`, `user.plan`, **`firestoreSynced: true`** on success.
-- **Create:** If no document, **`setDoc`** with `credits: newUserCreditsDefault()`, `plan: "free"`, timestamps.
+- **Create:** If no document, **`setDoc`** with `credits: newUserCreditsDefault()` (baseline **0** unless env / promo bonus), `plan: "free"`, timestamps.
 - **Failure path:** `firestoreSynced: false`; credits fall back to placeholder or previous; sidebar uses **`creditsBalanceTitle`** → “Balance not confirmed with Firestore”.
 - **Optimistic credit updates:** `updateCredits(n, { fromServer: true })` after **`/api/roast`** returns `creditsRemaining` (authoritative server debit). This sets **`firestoreSynced: true`** because the value came from the API that wrote Firestore. Without `{ fromServer: true }`, **`firestoreSynced` is unchanged** (reserved for future non-server callers).
 - **Checkout:** `updateCreditsAndPlan` after **`/api/dodo/verify`** — still sets **`firestoreSynced: true`** (payment verification path).

@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { AuthenticatedShell } from "@/components/authenticated-shell";
 
 export default function SettingsPage() {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const ok = useRequireAuth();
 
   if (!ok) return null;

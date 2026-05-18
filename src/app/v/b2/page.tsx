@@ -1,7 +1,6 @@
 "use client";
 
 import { Navbar } from "@/components/navbar";
-import { RoastGenerationOverlay } from "@/components/landing/roast-generation-overlay";
 import { useLandingRoast } from "@/hooks/use-landing-roast";
 import { HeroB2 } from "@/components/landing/b2/hero-b2";
 import { StatsBar } from "@/components/landing/shared/stats-bar";
@@ -13,31 +12,11 @@ import { PricingB2 } from "@/components/landing/b2/pricing-b2";
 import { FooterB2 } from "@/components/landing/b2/footer-b2";
 
 export default function LandingB2Page() {
-  const {
-    user,
-    roastPhase,
-    analysisComplete,
-    loaderKey,
-    teaserContent,
-    accountCreditsLine,
-    handleLoaderReveal,
-    handleContinueToReport,
-    roastForm,
-    handleRoast,
-  } = useLandingRoast();
+  const { user, roastForm, handleRoast } = useLandingRoast();
 
   return (
     <div className="min-h-screen bg-[var(--lv-minimal-bg)] text-foreground">
       <Navbar landingVisualId="b2" showLandingVariationSwitcher navMode="concept" tone="minimal" />
-      <RoastGenerationOverlay
-        phase={roastPhase}
-        analysisComplete={analysisComplete}
-        loaderKey={loaderKey}
-        teaserContent={teaserContent}
-        accountCreditsLine={accountCreditsLine}
-        onReveal={handleLoaderReveal}
-        onContinueToReport={handleContinueToReport}
-      />
       <main>
         <HeroB2 roastForm={roastForm} />
         <StatsBar />

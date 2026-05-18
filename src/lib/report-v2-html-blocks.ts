@@ -398,9 +398,9 @@ export function buildReportV2InnerHtml(
   const beforeAfter =
     beforeAfterWin &&
     (beforeAfterWin.problem || beforeAfterWin.fix || msgLayer.highPrioritySignals.length)
-      ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
-    <div style="border:1px solid var(--rs-border,#e5e7eb);border-radius:8px;padding:10px;"><strong>${esc("Before")}</strong><p style="margin-top:6px;font-size:0.875rem;">${esc(beforeAfterWin.problem || msgLayer.highPrioritySignals[0] || "—")}</p></div>
-    <div style="border:1px solid rgba(59,130,246,0.35);border-radius:8px;padding:10px;"><strong>${esc("After")}</strong><p style="margin-top:6px;font-size:0.875rem;">${esc(beforeAfterWin.fix || msgLayer.highPrioritySignals[1] || "—")}</p></div>
+      ? `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;min-width:0;">
+    <div style="border:1px solid var(--rs-border,#e5e7eb);border-radius:8px;padding:10px;min-width:0;overflow-wrap:anywhere;word-wrap:break-word;"><strong>${esc("Before")}</strong><p style="margin-top:6px;font-size:0.875rem;line-height:1.55;white-space:pre-wrap;">${esc(beforeAfterWin.problem || msgLayer.highPrioritySignals[0] || "—")}</p></div>
+    <div style="border:1px solid rgba(59,130,246,0.35);border-radius:8px;padding:10px;min-width:0;overflow-wrap:anywhere;word-wrap:break-word;"><strong>${esc("After")}</strong><p style="margin-top:6px;font-size:0.875rem;line-height:1.55;white-space:pre-wrap;">${esc(beforeAfterWin.fix || msgLayer.highPrioritySignals[1] || "—")}</p></div>
   </div>`
       : "";
 

@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import React, { useMemo } from "react";
 import { AuthenticatedShell } from "@/components/authenticated-shell";
 import { useRequireAuth } from "@/hooks/use-require-auth";
 import { useAuth } from "@/context/AuthContext";
@@ -15,15 +14,9 @@ import { useClaimPromoOnMount } from "@/hooks/use-claim-promo-on-mount";
 
 export default function DashboardPage() {
   const isAuthenticated = useRequireAuth();
-  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = useIsAdmin();
   useClaimPromoOnMount();
-
-  useEffect(() => {
-    if (!isAuthenticated || !user?.firestoreSynced || user.onboardingCompleted) return;
-    router.replace("/onboarding");
-  }, [isAuthenticated, user, router]);
 
   const history = useMemo(() => listRoastHistory(user?.uid), [user?.uid]);
 

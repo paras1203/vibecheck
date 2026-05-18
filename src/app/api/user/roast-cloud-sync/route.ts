@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { getAdminDb } from "@/lib/firebase-admin";
 import { requireFirebaseApiUser } from "@/lib/require-firebase-api-auth";
 import { userMayMirrorRoastsToCloud } from "@/lib/roast-cloud-eligibility-server";
+import { ROAST_CLOUD_RETENTION_MS } from "@/lib/roast-cloud-retention-ms";
 
 const bodySchema = z.object({
   clientRoastId: z.string().min(1).max(200),
@@ -39,6 +40,8 @@ export async function POST(request: NextRequest) {
 
     const db = getAdminDb();
     const docId = `${uid}_${body.clientRoastId}`;
+    const expiresAtMs = body.savedAt + ROAST_CLOUD_RETENTION_MS;
+
     await db
       .collection("roasts")
       .doc(docId)
@@ -47,6 +50,7 @@ export async function POST(request: NextRequest) {
           userId: uid,
           clientRoastId: body.clientRoastId,
           savedAt: body.savedAt,
+          expiresAt: Timestamp.fromMillis(expiresAtMs),
           overallScore: body.overallScore ?? null,
           auditedUrl: body.auditedUrl ?? null,
           planAtSave: body.planAtSave ?? null,

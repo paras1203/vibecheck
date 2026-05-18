@@ -54,24 +54,34 @@ function calculatorForStoredPayload(data: AuditReportPayload) {
 export function RecentReportsSection({ user, isAdmin }: Props) {
   const { firebaseUser } = useAuth();
   const [tick, setTick] = useState(0);
-  const [entries, setEntries] = useState<RoastHistoryEntry[]>(() => listRoastHistory(user?.uid));
+  const [entries, setEntries] = useState<RoastHistoryEntry[]>(() =>
+    listRoastHistory(user?.uid).slice(0, 10),
+  );
 
   const isPaid = Boolean(user && (user.plan === "pro" || user.plan === "agency"));
 
   useEffect(() => {
     const local = listRoastHistory(user?.uid);
+    const localCapped = local.slice(0, 10);
     if (!firebaseUser || !(isPaid || isAdmin)) {
-      setEntries(local);
+      setEntries(localCapped);
       return;
     }
     let cancelled = false;
     void (async () => {
       try {
         const tok = await firebaseUser.getIdToken();
-        const cloud = await fetchCloudRoastHistory(tok);
-        if (!cancelled) setEntries(mergeRoastHistoryEntries(local, cloud));
+        const cloudRes = await fetchCloudRoastHistory(tok);
+        if (cancelled) return;
+        for (const id of cloudRes.purgedClientRoastIds ?? []) {
+          removeRoastHistoryEntry(user?.uid, id);
+        }
+        const localMerged = listRoastHistory(user?.uid);
+        setEntries(
+          mergeRoastHistoryEntries(localMerged, cloudRes.entries ?? []),
+        );
       } catch {
-        if (!cancelled) setEntries(local);
+        if (!cancelled) setEntries(local.slice(0, 10));
       }
     })();
     return () => {

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, X } from "lucide-react";
 import Link from "next/link";
 import { resolvePostLoginPath } from "@/lib/post-login-redirect";
+import { peekPostSignupOnboardingPending } from "@/lib/post-signup-onboarding";
 function safeInternalNext(raw: string | null): string {
   if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/dashboard";
   return raw;
@@ -48,6 +49,7 @@ function LoginInner() {
       hasExplicitNextQuery,
       nextPath,
       onboardingCompleted: user.firestoreSynced ? user.onboardingCompleted : false,
+      postSignupOnboardingPending: peekPostSignupOnboardingPending(),
     });
     router.replace(dest);
   }, [user, loading, authResolved, isSyncing, router, nextPath, hasExplicitNextQuery]);

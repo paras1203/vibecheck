@@ -1,5 +1,5 @@
 import type { User } from "@/context/AuthContext";
-import type { BillingCheckoutPlanId } from "@/lib/billing-plans";
+import { CHECKOUT_FREE_TEST_USD, type BillingCheckoutPlanId } from "@/lib/billing-plans";
 
 export function billingPath(plan: BillingCheckoutPlanId) {
   return `/checkout?plan=${plan}`;
@@ -29,7 +29,7 @@ export const LANDING_BUNDLE_SAVE_USD = LANDING_BUNDLE_LIST_USD - LANDING_BUNDLE_
 /** Marketing line (rounded %). */
 export const LANDING_BUNDLE_SAVE_PCT = 75;
 
-export const LANDING_FREE_TEST_USD = 0.1;
+export const LANDING_FREE_TEST_USD = CHECKOUT_FREE_TEST_USD;
 
 export function usdLanding(n: number) {
   const hasCents = Math.abs(n % 1) > 1e-9;
